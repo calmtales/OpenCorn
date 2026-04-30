@@ -6,24 +6,26 @@ const styles = {
     display: "flex",
     flexDirection: "column" as const,
     height: "100%",
-    gap: 12,
+    gap: 16,
   },
   header: {
     display: "flex",
-    alignItems: "center",
+    alignItems: "baseline",
     justifyContent: "space-between",
   },
   title: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 600,
+    letterSpacing: "-0.01em",
   },
   sceneCount: {
-    fontSize: 12,
-    color: "var(--text-secondary)",
+    fontSize: 11,
+    color: "var(--text-muted)",
+    fontVariantNumeric: "tabular-nums",
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
     gap: 12,
     flex: 1,
     alignContent: "start",
@@ -34,18 +36,24 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     flex: 1,
-    gap: 12,
+    gap: 16,
     color: "var(--text-muted)",
     textAlign: "center" as const,
     padding: 40,
   },
   emptyIcon: {
-    fontSize: 48,
-    opacity: 0.3,
+    opacity: 0.15,
+  },
+  emptyTitle: {
+    fontSize: 14,
+    fontWeight: 500,
+    color: "var(--text-secondary)",
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 12,
     lineHeight: 1.5,
+    color: "var(--text-muted)",
+    maxWidth: 260,
   },
 };
 
@@ -58,7 +66,7 @@ export function StoryboardGrid({ storyboard }: Props) {
     return (
       <div style={styles.empty}>
         <div style={styles.emptyIcon}>
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+          <svg width="56" height="56" viewBox="0 0 64 64" fill="none">
             <rect
               x="4"
               y="8"
@@ -66,7 +74,7 @@ export function StoryboardGrid({ storyboard }: Props) {
               height="18"
               rx="3"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="1.5"
             />
             <rect
               x="36"
@@ -75,7 +83,7 @@ export function StoryboardGrid({ storyboard }: Props) {
               height="18"
               rx="3"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="1.5"
             />
             <rect
               x="4"
@@ -84,7 +92,7 @@ export function StoryboardGrid({ storyboard }: Props) {
               height="18"
               rx="3"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="1.5"
             />
             <rect
               x="36"
@@ -93,12 +101,13 @@ export function StoryboardGrid({ storyboard }: Props) {
               height="18"
               rx="3"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="1.5"
             />
           </svg>
         </div>
+        <div style={styles.emptyTitle}>No storyboard yet</div>
         <div style={styles.emptyText}>
-          Enter an idea and choose a style to generate your storyboard
+          Enter an idea and choose a visual style to generate your film storyboard
         </div>
       </div>
     );

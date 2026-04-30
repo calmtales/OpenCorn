@@ -1,4 +1,15 @@
-import type { Storyboard, Scene } from "../../shared/types";
+import type { Storyboard } from "../../shared/types";
+
+const SCENE_COLORS = [
+  "rgba(232, 93, 38, 0.25)",
+  "rgba(139, 92, 246, 0.25)",
+  "rgba(59, 130, 246, 0.25)",
+  "rgba(16, 185, 129, 0.25)",
+  "rgba(245, 158, 11, 0.25)",
+  "rgba(236, 72, 153, 0.25)",
+  "rgba(99, 102, 241, 0.25)",
+  "rgba(20, 184, 166, 0.25)",
+];
 
 const styles = {
   container: {
@@ -13,38 +24,37 @@ const styles = {
     justifyContent: "space-between",
   },
   label: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 600,
     textTransform: "uppercase" as const,
-    letterSpacing: "0.06em",
-    color: "var(--text-secondary)",
+    letterSpacing: "0.08em",
+    color: "var(--text-muted)",
   },
   time: {
-    fontSize: 11,
+    fontSize: 10,
     color: "var(--text-muted)",
     fontVariantNumeric: "tabular-nums",
   },
   track: {
     display: "flex",
-    height: 32,
+    height: 28,
     gap: 2,
     background: "var(--bg-tertiary)",
-    borderRadius: 6,
+    borderRadius: "var(--radius-sm)",
     overflow: "hidden",
     border: "1px solid var(--border)",
   },
-  segment: (widthPercent: number, isHover: boolean) => ({
+  segment: (widthPercent: number, colorIndex: number) => ({
     width: `${widthPercent}%`,
-    background: isHover ? "var(--accent)" : "var(--bg-card)",
+    background: SCENE_COLORS[colorIndex % SCENE_COLORS.length],
     borderRight: "1px solid var(--border)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     fontSize: 10,
     fontWeight: 500,
-    color: isHover ? "#fff" : "var(--text-secondary)",
+    color: "var(--text-secondary)",
     cursor: "pointer",
-    transition: "background 0.15s ease",
     overflow: "hidden",
     whiteSpace: "nowrap" as const,
     textOverflow: "ellipsis",
@@ -55,12 +65,12 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    height: 32,
+    height: 28,
     background: "var(--bg-tertiary)",
-    borderRadius: 6,
+    borderRadius: "var(--radius-sm)",
     border: "1px solid var(--border)",
     color: "var(--text-muted)",
-    fontSize: 12,
+    fontSize: 11,
   },
 };
 
@@ -92,12 +102,12 @@ export function TimelineBar({ storyboard }: Props) {
       <div style={styles.track}>
         {storyboard.scenes
           .sort((a, b) => a.order - b.order)
-          .map((scene) => {
+          .map((scene, i) => {
             const pct = (scene.duration / total) * 100;
             return (
               <div
                 key={scene.id}
-                style={styles.segment(pct, false)}
+                style={styles.segment(pct, i)}
                 title={`${scene.title} (${formatTime(scene.duration)})`}
               >
                 {pct > 8 ? `SC ${scene.order + 1}` : ""}

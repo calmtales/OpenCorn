@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FilmStyle, PipelineStatus, Storyboard } from "../shared/types";
+import type { FilmStyle, Storyboard } from "../shared/types";
 import { IdeaInput } from "./components/IdeaInput";
 import { StoryboardGrid } from "./components/StoryboardGrid";
 import { TimelineBar } from "./components/TimelineBar";
@@ -14,15 +14,17 @@ const styles = {
     flexDirection: "column" as const,
     height: "100%",
     overflow: "hidden",
+    background: "var(--bg-primary)",
   },
   header: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "12px 20px",
+    padding: "10px 20px",
     background: "var(--bg-secondary)",
-    borderBottom: "1px solid var(--border)",
+    borderBottom: "1px solid var(--border-subtle)",
     flexShrink: 0,
+    zIndex: 10,
   },
   logo: {
     display: "flex",
@@ -30,9 +32,9 @@ const styles = {
     gap: 10,
   },
   logoText: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 700,
-    letterSpacing: "-0.02em",
+    letterSpacing: "-0.03em",
   },
   logoAccent: {
     color: "var(--accent)",
@@ -40,7 +42,7 @@ const styles = {
   headerRight: {
     display: "flex",
     alignItems: "center",
-    gap: 16,
+    gap: 12,
   },
   main: {
     display: "flex",
@@ -48,10 +50,10 @@ const styles = {
     overflow: "hidden",
   },
   sidebar: {
-    width: 320,
+    width: 300,
     flexShrink: 0,
     background: "var(--bg-secondary)",
-    borderRight: "1px solid var(--border)",
+    borderRight: "1px solid var(--border-subtle)",
     display: "flex",
     flexDirection: "column" as const,
     overflow: "hidden",
@@ -61,6 +63,7 @@ const styles = {
     display: "flex",
     flexDirection: "column" as const,
     overflow: "hidden",
+    background: "var(--bg-primary)",
   },
   viewport: {
     flex: 1,
@@ -70,29 +73,30 @@ const styles = {
   storyboardArea: {
     flex: 1,
     overflow: "auto",
-    padding: 16,
+    padding: 20,
   },
   previewPanel: {
-    width: 360,
+    width: 340,
     flexShrink: 0,
     background: "var(--bg-secondary)",
-    borderLeft: "1px solid var(--border)",
+    borderLeft: "1px solid var(--border-subtle)",
     display: "flex",
     flexDirection: "column" as const,
   },
   timelineArea: {
     flexShrink: 0,
     borderTop: "1px solid var(--border)",
+    background: "var(--bg-secondary)",
   },
   statusBar: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "6px 16px",
+    padding: "5px 16px",
     background: "var(--bg-tertiary)",
-    borderTop: "1px solid var(--border)",
-    fontSize: 12,
-    color: "var(--text-secondary)",
+    borderTop: "1px solid var(--border-subtle)",
+    fontSize: 11,
+    color: "var(--text-muted)",
     flexShrink: 0,
   },
   stageLabel: {
@@ -101,22 +105,33 @@ const styles = {
     gap: 8,
   },
   progressDot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderRadius: "50%",
-    background: "var(--success)",
+    flexShrink: 0,
+  },
+  progressBar: {
+    height: 2,
+    background: "var(--bg-tertiary)",
+    position: "relative" as const,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    background: "var(--accent)",
+    transition: "width 0.5s var(--ease-out)",
   },
 };
 
 export default function App() {
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const pipeline = useFilmPipeline();
+
+  const activeStoryboard = pipeline.storyboard ?? storyboard;
 
   const handleSubmit = async (idea: string, style: FilmStyle) => {
     try {
-      const result = await pipeline.submitIdea(idea, style);
-      // Pipeline hook handles polling and state transitions
+      await pipeline.submitIdea(idea, style);
     } catch (err) {
       console.error("Submit failed:", err);
     }
@@ -124,7 +139,7 @@ export default function App() {
 
   const stageLabels: Record<string, string> = {
     idle: "Ready",
-    generating_screenplay: "Generating screenplay...",
+    generating_screenplay: "Writing screenplay...",
     generating_keyframes: "Rendering keyframes...",
     generating_video: "Generating video...",
     processing_audio: "Processing audio...",
@@ -132,20 +147,15 @@ export default function App() {
     complete: "Complete",
   };
 
+  const isActive = pipeline.stage !== "idle";
+
   return (
     <div style={styles.app}>
       {/* Header */}
       <div style={styles.header}>
         <div style={styles.logo}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <rect
-              x="2"
-              y="2"
-              width="20"
-              height="20"
-              rx="4"
-              fill="var(--accent)"
-            />
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <rect x="2" y="2" width="20" height="20" rx="4" fill="var(--accent)" />
             <path d="M8 8L16 12L8 16V8Z" fill="var(--bg-primary)" />
           </svg>
           <span style={styles.logoText}>
@@ -153,17 +163,23 @@ export default function App() {
           </span>
         </div>
         <div style={styles.headerRight}>
-          <McpStatus />
+          <McpStatus connected={!!pipeline.workflowId} />
           <ExportPanel
-            videoUrl={videoUrl}
+            videoUrl={pipeline.videoUrl}
             disabled={pipeline.stage !== "complete"}
           />
         </div>
       </div>
 
+      {/* Progress bar */}
+      {isActive && (
+        <div style={styles.progressBar}>
+          <div style={{ ...styles.progressFill, width: `${pipeline.progress}%` }} />
+        </div>
+      )}
+
       {/* Main area */}
       <div style={styles.main}>
-        {/* Left sidebar: idea input */}
         <div style={styles.sidebar}>
           <IdeaInput
             onSubmit={handleSubmit}
@@ -171,18 +187,17 @@ export default function App() {
           />
         </div>
 
-        {/* Center: storyboard + timeline */}
         <div style={styles.content}>
           <div style={styles.viewport}>
             <div style={styles.storyboardArea}>
-              <StoryboardGrid storyboard={storyboard} />
+              <StoryboardGrid storyboard={activeStoryboard} />
             </div>
             <div style={styles.previewPanel}>
-              <PlayerPreview videoUrl={videoUrl} />
+              <PlayerPreview videoUrl={pipeline.videoUrl} />
             </div>
           </div>
           <div style={styles.timelineArea}>
-            <TimelineBar storyboard={storyboard} />
+            <TimelineBar storyboard={activeStoryboard} />
           </div>
         </div>
       </div>
@@ -199,12 +214,23 @@ export default function App() {
                   : pipeline.stage === "idle"
                     ? "var(--text-muted)"
                     : "var(--accent)",
+              boxShadow:
+                pipeline.stage !== "idle" && pipeline.stage !== "complete"
+                  ? "0 0 6px var(--accent-glow)"
+                  : pipeline.stage === "complete"
+                    ? "0 0 6px var(--success-muted)"
+                    : "none",
             }}
           />
           <span>{stageLabels[pipeline.stage] ?? pipeline.stage}</span>
+          {pipeline.error && (
+            <span style={{ color: "var(--error)", marginLeft: 8 }}>
+              {pipeline.error}
+            </span>
+          )}
         </div>
-        <span>
-          {pipeline.stage !== "idle" && `${pipeline.progress}%`}
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>
+          {isActive ? `${pipeline.progress}%` : ""}
         </span>
       </div>
     </div>

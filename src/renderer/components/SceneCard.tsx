@@ -5,11 +5,12 @@ const styles = {
   card: (hover: boolean) => ({
     background: "var(--bg-card)",
     border: `1px solid ${hover ? "var(--accent)" : "var(--border)"}`,
-    borderRadius: 8,
+    borderRadius: "var(--radius-md)",
     overflow: "hidden",
     cursor: "pointer",
-    transition: "border-color 0.15s ease, transform 0.15s ease",
+    transition: "border-color var(--duration-normal) var(--ease-out), transform var(--duration-normal) var(--ease-out), box-shadow var(--duration-normal) var(--ease-out)",
     transform: hover ? "translateY(-2px)" : "none",
+    boxShadow: hover ? "var(--shadow-md)" : "none",
   }),
   preview: {
     width: "100%",
@@ -34,25 +35,29 @@ const styles = {
     position: "absolute" as const,
     top: 8,
     left: 8,
-    background: "rgba(0,0,0,0.7)",
-    borderRadius: 4,
-    padding: "2px 6px",
+    background: "var(--bg-overlay)",
+    backdropFilter: "blur(4px)",
+    borderRadius: "var(--radius-sm)",
+    padding: "2px 7px",
     fontSize: 10,
     fontWeight: 700,
     color: "var(--accent)",
+    letterSpacing: "0.04em",
   },
   duration: {
     position: "absolute" as const,
     bottom: 8,
     right: 8,
-    background: "rgba(0,0,0,0.7)",
-    borderRadius: 4,
-    padding: "2px 6px",
+    background: "var(--bg-overlay)",
+    backdropFilter: "blur(4px)",
+    borderRadius: "var(--radius-sm)",
+    padding: "2px 7px",
     fontSize: 10,
     color: "var(--text-secondary)",
+    fontVariantNumeric: "tabular-nums",
   },
   body: {
-    padding: 10,
+    padding: "10px 12px",
     display: "flex",
     flexDirection: "column" as const,
     gap: 4,
@@ -64,6 +69,7 @@ const styles = {
     whiteSpace: "nowrap" as const,
     overflow: "hidden",
     textOverflow: "ellipsis",
+    color: "var(--text-primary)",
   },
   description: {
     fontSize: 11,
@@ -130,7 +136,7 @@ export function SceneCard({ scene }: Props) {
         <div style={styles.title}>{scene.title}</div>
         <div style={styles.description}>{scene.description}</div>
         {scene.dialogue && (
-          <div style={styles.dialogue}>"{scene.dialogue}"</div>
+          <div style={styles.dialogue}>&ldquo;{scene.dialogue}&rdquo;</div>
         )}
       </div>
     </div>

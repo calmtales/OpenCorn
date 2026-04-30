@@ -14,27 +14,26 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 6,
-    padding: "6px 14px",
+    padding: "5px 12px",
     background: disabled ? "var(--bg-tertiary)" : "var(--accent)",
     border: "none",
-    borderRadius: 6,
+    borderRadius: "var(--radius-sm)",
     color: disabled ? "var(--text-muted)" : "#fff",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 600,
     cursor: disabled ? "not-allowed" : "pointer",
-    transition: "background 0.15s ease",
   }),
   dropdown: {
     position: "absolute" as const,
     top: "calc(100% + 6px)",
     right: 0,
-    background: "var(--bg-secondary)",
+    background: "var(--bg-elevated)",
     border: "1px solid var(--border)",
-    borderRadius: 8,
+    borderRadius: "var(--radius-md)",
     padding: 6,
     minWidth: 180,
     zIndex: 100,
-    boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+    boxShadow: "var(--shadow-lg)",
   },
   dropdownLabel: {
     fontSize: 10,
@@ -47,10 +46,10 @@ const styles = {
   formatBtn: (selected: boolean) => ({
     display: "block",
     width: "100%",
-    padding: "8px 10px",
-    background: selected ? "var(--bg-tertiary)" : "transparent",
+    padding: "7px 10px",
+    background: selected ? "var(--accent-muted)" : "transparent",
     border: "none",
-    borderRadius: 4,
+    borderRadius: "var(--radius-sm)",
     color: selected ? "var(--accent)" : "var(--text-primary)",
     fontSize: 12,
     fontWeight: selected ? 600 : 400,
@@ -64,7 +63,7 @@ const styles = {
     marginTop: 4,
     background: "var(--accent)",
     border: "none",
-    borderRadius: 6,
+    borderRadius: "var(--radius-sm)",
     color: "#fff",
     fontSize: 12,
     fontWeight: 600,
@@ -97,7 +96,7 @@ export function ExportPanel({ videoUrl, disabled }: Props) {
         onClick={() => !disabled && setOpen(!open)}
         disabled={disabled}
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
           <path
             d="M7 1V9M7 9L4 6M7 9L10 6"
             stroke="currentColor"

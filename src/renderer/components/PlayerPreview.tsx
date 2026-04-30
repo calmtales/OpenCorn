@@ -5,13 +5,13 @@ const styles = {
     height: "100%",
   },
   header: {
-    padding: "12px 16px",
-    fontSize: 11,
+    padding: "10px 16px",
+    fontSize: 10,
     fontWeight: 600,
     textTransform: "uppercase" as const,
-    letterSpacing: "0.06em",
-    color: "var(--text-secondary)",
-    borderBottom: "1px solid var(--border)",
+    letterSpacing: "0.08em",
+    color: "var(--text-muted)",
+    borderBottom: "1px solid var(--border-subtle)",
   },
   viewport: {
     flex: 1,
@@ -38,7 +38,7 @@ const styles = {
     textAlign: "center" as const,
   },
   emptyIcon: {
-    opacity: 0.3,
+    opacity: 0.2,
   },
   controls: {
     display: "flex",
@@ -46,11 +46,11 @@ const styles = {
     gap: 8,
     padding: "8px 12px",
     background: "var(--bg-secondary)",
-    borderTop: "1px solid var(--border)",
+    borderTop: "1px solid var(--border-subtle)",
   },
   playBtn: {
-    width: 32,
-    height: 32,
+    width: 28,
+    height: 28,
     borderRadius: "50%",
     background: "var(--accent)",
     border: "none",
@@ -63,7 +63,7 @@ const styles = {
   },
   scrubber: {
     flex: 1,
-    height: 4,
+    height: 3,
     borderRadius: 2,
     background: "var(--bg-tertiary)",
     position: "relative" as const,
@@ -78,10 +78,10 @@ const styles = {
     background: "var(--accent)",
   },
   time: {
-    fontSize: 11,
-    color: "var(--text-secondary)",
+    fontSize: 10,
+    color: "var(--text-muted)",
     fontVariantNumeric: "tabular-nums",
-    minWidth: 40,
+    minWidth: 36,
     textAlign: "right" as const,
   },
 };
@@ -108,17 +108,19 @@ export function PlayerPreview({ videoUrl }: Props) {
                   height="32"
                   rx="4"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="1.5"
                 />
                 <path
                   d="M20 16L32 24L20 32V16Z"
                   stroke="currentColor"
-                  strokeWidth="2"
+                  strokeWidth="1.5"
                   strokeLinejoin="round"
                 />
               </svg>
             </div>
-            <div style={{ fontSize: 13 }}>Video preview will appear here</div>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+              Video preview will appear here
+            </div>
             <div style={{ fontSize: 11 }}>
               Generate a film to see the result
             </div>
@@ -128,7 +130,7 @@ export function PlayerPreview({ videoUrl }: Props) {
       {videoUrl && (
         <div style={styles.controls}>
           <button style={styles.playBtn}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
               <path d="M3 1L12 7L3 13V1Z" fill="currentColor" />
             </svg>
           </button>

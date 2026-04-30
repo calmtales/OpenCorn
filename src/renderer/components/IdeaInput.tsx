@@ -16,7 +16,7 @@ const styles = {
     flexDirection: "column" as const,
     height: "100%",
     padding: 16,
-    gap: 16,
+    gap: 20,
   },
   section: {
     display: "flex",
@@ -24,22 +24,22 @@ const styles = {
     gap: 8,
   },
   label: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 600,
     textTransform: "uppercase" as const,
-    letterSpacing: "0.06em",
-    color: "var(--text-secondary)",
+    letterSpacing: "0.08em",
+    color: "var(--text-muted)",
   },
   textarea: {
     width: "100%",
-    minHeight: 160,
-    padding: 12,
+    minHeight: 140,
+    padding: "10px 12px",
     background: "var(--bg-tertiary)",
     border: "1px solid var(--border)",
-    borderRadius: 8,
+    borderRadius: "var(--radius-md)",
     color: "var(--text-primary)",
-    fontSize: 14,
-    lineHeight: 1.5,
+    fontSize: 13,
+    lineHeight: 1.6,
     resize: "vertical" as const,
     outline: "none",
     fontFamily: "inherit",
@@ -53,27 +53,26 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 6,
-    padding: "8px 10px",
-    background: selected ? "var(--accent)" : "var(--bg-tertiary)",
+    padding: "7px 10px",
+    background: selected ? "var(--accent-muted)" : "var(--bg-tertiary)",
     border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
-    borderRadius: 6,
-    color: selected ? "#fff" : "var(--text-secondary)",
+    borderRadius: "var(--radius-sm)",
+    color: selected ? "var(--accent)" : "var(--text-secondary)",
     fontSize: 12,
     fontWeight: selected ? 600 : 400,
     cursor: "pointer",
-    transition: "all 0.15s ease",
   }),
   submitBtn: (disabled: boolean) => ({
     width: "100%",
-    padding: "12px 0",
+    padding: "11px 0",
     background: disabled ? "var(--bg-tertiary)" : "var(--accent)",
     border: "none",
-    borderRadius: 8,
+    borderRadius: "var(--radius-md)",
     color: disabled ? "var(--text-muted)" : "#fff",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 600,
     cursor: disabled ? "not-allowed" : "pointer",
-    transition: "background 0.15s ease",
+    letterSpacing: "0.01em",
   }),
   hint: {
     fontSize: 11,
@@ -96,6 +95,12 @@ export function IdeaInput({ onSubmit, disabled }: Props) {
     onSubmit(idea.trim(), style);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      handleSubmit();
+    }
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.section}>
@@ -105,10 +110,11 @@ export function IdeaInput({ onSubmit, disabled }: Props) {
           placeholder="A lone astronaut discovers an ancient AI artifact on a distant moon..."
           value={idea}
           onChange={(e) => setIdea(e.target.value)}
+          onKeyDown={handleKeyDown}
           disabled={disabled}
         />
         <span style={styles.hint}>
-          Describe the film concept. Be as brief or detailed as you like.
+          Describe your film concept. Press Cmd+Enter to generate.
         </span>
       </div>
 
