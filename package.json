@@ -1,6 +1,6 @@
 {
   "name": "opencorn",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Open-source AI film studio. Type an idea, get a film.",
   "license": "MIT",
   "scripts": {

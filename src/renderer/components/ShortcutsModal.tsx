@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 const s = {
   overlay: {
     position: "fixed" as const,
@@ -149,13 +151,64 @@ interface Props {
 }
 
 export function ShortcutsModal({ onClose }: Props) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Focus trap: keep Tab/Shift+Tab within the modal
+  useEffect(() => {
+    const modal = modalRef.current;
+    if (!modal) return;
+
+    // Focus the close button on open
+    closeBtnRef.current?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab") {
+        const focusable = modal.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+
+    modal.addEventListener("keydown", handleKeyDown);
+    return () => modal.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   return (
-    <div style={s.overlay} onClick={onClose}>
-      <div style={s.modal} onClick={(e) => e.stopPropagation()}>
+    <div style={s.overlay} onClick={onClose} role="presentation">
+      <div
+        ref={modalRef}
+        style={s.modal}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Keyboard shortcuts"
+      >
         <div style={s.header}>
           <span style={s.title}>Keyboard Shortcuts</span>
-          <button style={s.closeBtn} onClick={onClose} aria-label="Close">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <button
+            ref={closeBtnRef}
+            style={s.closeBtn}
+            onClick={onClose}
+            aria-label="Close shortcuts modal"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
               <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </button>
@@ -167,7 +220,7 @@ export function ShortcutsModal({ onClose }: Props) {
               {group.items.map((item) => (
                 <div key={item.label} style={s.row}>
                   <span style={s.label}>{item.label}</span>
-                  <div style={s.kbdGroup}>
+                  <div style={s.kbdGroup} aria-label={`${item.keys.join(" + ")} — ${item.label}`}>
                     {item.keys.map((key, i) => (
                       <span key={i}>
                         <span style={s.kbd}>

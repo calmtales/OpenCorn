@@ -1,5 +1,23 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { FilmStyle, StylePreset, AspectRatio } from "../../shared/types";
+
+const PRESET_CACHE_KEY = "opencorn-preset-thumbnails";
+
+function getCachedThumbnails(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(PRESET_CACHE_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function cacheThumbnail(presetId: string, gradient: string) {
+  try {
+    const cache = getCachedThumbnails();
+    cache[presetId] = gradient;
+    localStorage.setItem(PRESET_CACHE_KEY, JSON.stringify(cache));
+  } catch {}
+}
 
 const BUILT_IN_PRESETS: StylePreset[] = [
   {
@@ -303,6 +321,15 @@ interface Props {
 
 export function PresetGallery({ onClose, onApply }: Props) {
   const [selected, setSelected] = useState<StylePreset | null>(null);
+  const [cachedGradients] = useState(() => getCachedThumbnails());
+
+  // Cache gradients on mount
+  useEffect(() => {
+    for (const preset of BUILT_IN_PRESETS) {
+      const gradient = STYLE_GRADIENTS[preset.style];
+      if (gradient) cacheThumbnail(preset.id, gradient);
+    }
+  }, []);
 
   const handleApply = useCallback(() => {
     if (!selected) return;
@@ -403,7 +430,7 @@ export function PresetGallery({ onClose, onApply }: Props) {
               style={s.card(false)}
               onClick={() => setSelected(preset)}
             >
-              <div style={s.thumbnail(STYLE_GRADIENTS[preset.style] ?? STYLE_GRADIENTS.anime)}>
+              <div style={s.thumbnail(cachedGradients[preset.id] ?? STYLE_GRADIENTS[preset.style] ?? STYLE_GRADIENTS.anime)}>
                 <div style={s.thumbOverlay} />
                 <span style={s.thumbName}>{preset.name}</span>
               </div>

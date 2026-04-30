@@ -4,7 +4,7 @@ export default {
   app: {
     name: "OpenCorn",
     identifier: "dev.opencorn.app",
-    version: "0.1.0",
+    version: "0.4.0",
   },
   runtime: {
     exitOnLastWindowClosed: true,
