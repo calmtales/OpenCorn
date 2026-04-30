@@ -4,7 +4,10 @@ import type {
   PipelineStage,
   PipelineStatus,
   Storyboard,
+  AppSettings,
+  Toast,
 } from "../../shared/types";
+import { DEFAULT_SETTINGS } from "../../shared/types";
 
 interface PipelineState {
   stage: PipelineStage;
@@ -13,6 +16,7 @@ interface PipelineState {
   storyboard: Storyboard | null;
   videoUrl: string | null;
   error: string | null;
+  settings: AppSettings;
 }
 
 const INITIAL: PipelineState = {
@@ -22,6 +26,7 @@ const INITIAL: PipelineState = {
   storyboard: null,
   videoUrl: null,
   error: null,
+  settings: { ...DEFAULT_SETTINGS },
 };
 
 function getBunRpc() {
@@ -39,6 +44,17 @@ export function useFilmPipeline() {
     };
   }, []);
 
+  // Load saved settings
+  useEffect(() => {
+    const rpc = getBunRpc();
+    rpc?.request
+      ?.getSettings?.()
+      .then((settings: AppSettings) => {
+        if (settings) setState((prev) => ({ ...prev, settings }));
+      })
+      .catch(() => {});
+  }, []);
+
   // Listen for push events from Bun side
   useEffect(() => {
     const onPipeline = (e: CustomEvent) => {
@@ -49,7 +65,42 @@ export function useFilmPipeline() {
         progress: status.progress,
         error: status.error ?? null,
       }));
+
+      // Fire toasts for stage transitions
+      const stageMessages: Record<string, string> = {
+        generating_screenplay: "Writing your screenplay...",
+        generating_keyframes: "Rendering scene keyframes...",
+        generating_video: "Generating video clips...",
+        stitching: "Stitching final render...",
+        complete: "Film complete!",
+      };
+      const msg = stageMessages[status.stage];
+      if (msg) {
+        window.dispatchEvent(
+          new CustomEvent("toast", {
+            detail: {
+              id: "",
+              type: status.stage === "complete" ? "success" : "info",
+              message: msg,
+            } as Toast,
+          })
+        );
+      }
+
+      if (status.error) {
+        window.dispatchEvent(
+          new CustomEvent("toast", {
+            detail: {
+              id: "",
+              type: "error",
+              message: status.error,
+              duration: 6000,
+            } as Toast,
+          })
+        );
+      }
     };
+
     const onStoryboard = (e: CustomEvent) => {
       setState((prev) => ({
         ...prev,
@@ -57,7 +108,13 @@ export function useFilmPipeline() {
         stage: "generating_keyframes",
         progress: 30,
       }));
+      window.dispatchEvent(
+        new CustomEvent("toast", {
+          detail: { id: "", type: "success", message: "Storyboard ready!" } as Toast,
+        })
+      );
     };
+
     const onVideo = (e: CustomEvent) => {
       setState((prev) => ({
         ...prev,
@@ -128,7 +185,7 @@ export function useFilmPipeline() {
             // video not ready
           }
         }
-      } catch (err) {
+      } catch {
         // RPC failed — don't crash, just retry next tick
       }
     }, 2000);
@@ -136,26 +193,107 @@ export function useFilmPipeline() {
 
   const submitIdea = useCallback(
     async (idea: string, style: FilmStyle) => {
-      setState({
+      setState((prev) => ({
+        ...prev,
         ...INITIAL,
+        settings: prev.settings,
         stage: "generating_screenplay",
         progress: 5,
-      });
+      }));
+
+      window.dispatchEvent(
+        new CustomEvent("toast", {
+          detail: { id: "", type: "info", message: "Starting film generation..." } as Toast,
+        })
+      );
 
       const rpc = getBunRpc();
-      const { workflowId } = await rpc.request.submitIdea({ idea, style });
+      const { workflowId } = await rpc.request.submitIdea({
+        idea,
+        style,
+        settings: state.settings,
+      });
 
       setState((prev) => ({ ...prev, workflowId }));
       startPolling(workflowId);
 
       return { workflowId };
     },
+    [startPolling, state.settings]
+  );
+
+  const resumeWorkflow = useCallback(
+    async (workflowId: string) => {
+      const rpc = getBunRpc();
+
+      // Fetch existing storyboard
+      try {
+        const sb = await rpc.request.getStoryboard({ workflowId });
+        setState((prev) => ({
+          ...prev,
+          storyboard: sb,
+          workflowId,
+          stage: "generating_keyframes",
+          progress: 30,
+        }));
+      } catch {
+        setState((prev) => ({ ...prev, workflowId }));
+      }
+
+      // Try to get video
+      try {
+        const { videoUrl } = await rpc.request.getVideo({ workflowId });
+        setState((prev) => ({
+          ...prev,
+          videoUrl,
+          stage: "complete",
+          progress: 100,
+        }));
+      } catch {
+        // Not ready, start polling
+        startPolling(workflowId);
+      }
+
+      window.dispatchEvent(
+        new CustomEvent("toast", {
+          detail: { id: "", type: "info", message: `Resumed workflow ${workflowId.slice(0, 8)}` } as Toast,
+        })
+      );
+    },
     [startPolling]
   );
 
+  const updateScene = useCallback(
+    (sceneId: string, updates: Partial<any>) => {
+      setState((prev) => {
+        if (!prev.storyboard) return prev;
+        const scenes = prev.storyboard.scenes.map((s) =>
+          s.id === sceneId ? { ...s, ...updates } : s
+        );
+        return {
+          ...prev,
+          storyboard: { ...prev.storyboard, scenes },
+        };
+      });
+
+      // Persist to backend
+      if (state.workflowId) {
+        const rpc = getBunRpc();
+        rpc?.request
+          ?.updateScene?.({ workflowId: state.workflowId, sceneId, updates })
+          .catch(() => {});
+      }
+    },
+    [state.workflowId]
+  );
+
+  const updateSettings = useCallback((settings: AppSettings) => {
+    setState((prev) => ({ ...prev, settings }));
+  }, []);
+
   const reset = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
-    setState(INITIAL);
+    setState((prev) => ({ ...INITIAL, settings: prev.settings }));
   }, []);
 
   return {
@@ -165,7 +303,11 @@ export function useFilmPipeline() {
     storyboard: state.storyboard,
     videoUrl: state.videoUrl,
     error: state.error,
+    settings: state.settings,
     submitIdea,
+    resumeWorkflow,
+    updateScene,
+    updateSettings,
     reset,
   };
 }

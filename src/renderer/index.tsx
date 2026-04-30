@@ -23,6 +23,21 @@ const rpc = Electroview.defineRPC<WebviewRPC>({
           new CustomEvent("video-ready", { detail: videoUrl })
         );
       },
+      onToast: ({ toast }) => {
+        window.dispatchEvent(new CustomEvent("toast", { detail: toast }));
+      },
+      onComfyUIUpdate: ({ connection }) => {
+        window.dispatchEvent(
+          new CustomEvent("comfyui-update", { detail: { connection } })
+        );
+      },
+      onBatchProgress: ({ jobId, status, progress }) => {
+        window.dispatchEvent(
+          new CustomEvent("batch-progress", {
+            detail: { jobId, status, progress },
+          })
+        );
+      },
     },
   },
 });
