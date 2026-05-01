@@ -332,9 +332,12 @@ const win = new BrowserWindow({
   url: "views://main/index.html",
 });
 
-// Wire up Bun-side RPC handlers
-win.rpc.on({
-  submitIdea: async ({ idea, style, settings }) => {
+// Wire up Bun-side RPC handlers — access rpc via webview (BrowserWindow delegates to BrowserView)
+// Cast: BrowserView.rpc is typed as RPCWithTransport (only setTransport), but the runtime
+// object returned by defineElectrobunRPC includes setRequestHandler/send from createRPC
+const rpc = win.webview!.rpc! as any;
+rpc.setRequestHandler({
+  submitIdea: async ({ idea, style, settings }: { idea: string; style: FilmStyle; settings: AppSettings }) => {
     currentSettings = settings ?? currentSettings;
     mcp.setServerUrl(currentSettings.mcpServerUrl);
 
@@ -351,7 +354,7 @@ win.rpc.on({
     workflowStore.set(workflowId, { storyboard });
 
     // Push storyboard to renderer
-    win.rpc.send("onStoryboardReady", { storyboard });
+    rpc.send("onStoryboardReady", { storyboard });
 
     // Kick off full pipeline in background
     mcp
@@ -365,7 +368,7 @@ win.rpc.on({
         if (entry) entry.videoUrl = mergedUrl ?? firstVideo;
 
         if (mergedUrl || firstVideo) {
-          win.rpc.send("onVideoReady", {
+          rpc.send("onVideoReady", {
             videoUrl: mergedUrl ?? firstVideo,
           });
         }
@@ -377,18 +380,18 @@ win.rpc.on({
     return { workflowId };
   },
 
-  getStoryboard: async ({ workflowId }) => {
+  getStoryboard: async ({ workflowId }: { workflowId: string }) => {
     const entry = workflowStore.get(workflowId);
     if (entry?.storyboard) return entry.storyboard;
     throw new Error("Storyboard not found for workflow " + workflowId);
   },
 
-  pollStatus: async ({ workflowId }) => {
+  pollStatus: async ({ workflowId }: { workflowId: string }) => {
     if (!mcp.isConnected()) throw new Error("MCP not connected");
     return mcp.getWorkflowStatus(workflowId);
   },
 
-  getVideo: async ({ workflowId }) => {
+  getVideo: async ({ workflowId }: { workflowId: string }) => {
     const entry = workflowStore.get(workflowId);
     if (entry?.videoUrl) return { videoUrl: entry.videoUrl };
     throw new Error("Video not ready for workflow " + workflowId);
@@ -403,18 +406,18 @@ win.rpc.on({
     return { workflows };
   },
 
-  deleteWorkflow: async ({ workflowId }) => {
+  deleteWorkflow: async ({ workflowId }: { workflowId: string }) => {
     workflowStore.delete(workflowId);
     if (!mcp.isConnected()) return { success: true };
     const ok = await mcp.deleteWorkflow(workflowId);
     return { success: ok };
   },
 
-  resumeWorkflow: async ({ workflowId }) => {
+  resumeWorkflow: async ({ workflowId }: { workflowId: string }) => {
     return { workflowId };
   },
 
-  updateScene: async ({ workflowId, sceneId, updates }) => {
+  updateScene: async ({ workflowId, sceneId, updates }: { workflowId: string; sceneId: string; updates: Partial<Scene> }) => {
     const entry = workflowStore.get(workflowId);
     if (entry?.storyboard) {
       entry.storyboard.scenes = entry.storyboard.scenes.map((s) =>
@@ -428,23 +431,23 @@ win.rpc.on({
     return currentSettings;
   },
 
-  saveSettings: async ({ settings }) => {
+  saveSettings: async ({ settings }: { settings: AppSettings }) => {
     currentSettings = settings;
     return { success: true };
   },
 
   // --- ComfyUI ---
-  comfyConnect: async ({ url }) => {
+  comfyConnect: async ({ url }: { url: string }) => {
     const ok = await comfy.connect(url);
     const conn = comfy.getConnection();
-    win.rpc.send("onComfyUIUpdate", { connection: conn });
+    rpc.send("onComfyUIUpdate", { connection: conn });
     return { success: ok, models: conn.models };
   },
 
   comfyDisconnect: async () => {
     comfy.disconnect();
     const conn = comfy.getConnection();
-    win.rpc.send("onComfyUIUpdate", { connection: conn });
+    rpc.send("onComfyUIUpdate", { connection: conn });
     return { success: true };
   },
 
@@ -457,18 +460,18 @@ win.rpc.on({
     return { models };
   },
 
-  comfyImportWorkflow: async ({ json }) => {
+  comfyImportWorkflow: async ({ json }: { json: string }) => {
     const workflow = await comfy.importWorkflow(json);
     return { workflow };
   },
 
-  comfyExportWorkflow: async ({ workflowId }) => {
+  comfyExportWorkflow: async ({ workflowId }: { workflowId: string }) => {
     const json = comfy.exportWorkflow(workflowId);
     if (!json) throw new Error("Workflow not found");
     return { json };
   },
 
-  comfySubmitPrompt: async ({ workflowId, inputs }) => {
+  comfySubmitPrompt: async ({ workflowId, inputs }: { workflowId: string; inputs: Record<string, unknown> }) => {
     const workflows = comfy.getWorkflows();
     const wf = workflows.find((w) => w.id === workflowId);
     if (!wf) throw new Error("Workflow not found");
@@ -476,7 +479,7 @@ win.rpc.on({
     return { promptId };
   },
 
-  comfyPollStatus: async ({ promptId }) => {
+  comfyPollStatus: async ({ promptId }: { promptId: string }) => {
     return comfy.pollStatus(promptId);
   },
 
@@ -486,7 +489,7 @@ win.rpc.on({
   },
 
   // --- Local Models ---
-  scanLocalModels: async ({ dir }) => {
+  scanLocalModels: async ({ dir }: { dir?: string }) => {
     const modelsDir = dir ?? `${process.env.HOME}/.stoira/models`;
     const models: LocalModel[] = [];
 
@@ -599,7 +602,7 @@ win.rpc.on({
     return { models };
   },
 
-  downloadModel: async ({ modelId, url }) => {
+  downloadModel: async ({ modelId, url }: { modelId: string; url: string }) => {
     // In a real implementation, this would stream the download to ~/.stoira/models/
     console.log(`Download requested: ${modelId} from ${url}`);
     return { success: true };
@@ -622,7 +625,7 @@ win.rpc.on({
     return { totalMb: 8192, usedMb: 2048, freeMb: 6144 };
   },
 
-  benchmarkModel: async ({ modelId }) => {
+  benchmarkModel: async ({ modelId }: { modelId: string }) => {
     // Simulated benchmark
     const baseLatency = 150;
     const jitter = Math.random() * 100;
@@ -630,9 +633,9 @@ win.rpc.on({
   },
 
   // --- Batch Mode ---
-  submitBatch: async ({ jobs, concurrency }) => {
+  submitBatch: async ({ jobs, concurrency }: { jobs: { idea: string; style: FilmStyle }[]; concurrency: number }) => {
     const batchId = `batch-${++batchCounter}`;
-    const batchJobs: BatchJob[] = jobs.map((j, i) => ({
+    const batchJobs: BatchJob[] = jobs.map((j: { idea: string; style: FilmStyle }, i: number) => ({
       id: `${batchId}-job-${i}`,
       idea: j.idea,
       style: j.style,
@@ -654,7 +657,7 @@ win.rpc.on({
       for (let i = 0; i < batchJobs.length; i++) {
         const job = batchJobs[i];
         job.status = "running";
-        win.rpc.send("onBatchProgress", {
+        rpc.send("onBatchProgress", {
           jobId: job.id,
           status: "running",
           progress: 0,
@@ -669,7 +672,7 @@ win.rpc.on({
           );
           job.workflowId = workflowId;
           job.progress = 30;
-          win.rpc.send("onBatchProgress", {
+          rpc.send("onBatchProgress", {
             jobId: job.id,
             status: "running",
             progress: 30,
@@ -688,7 +691,7 @@ win.rpc.on({
           job.videoUrl = mergedUrl ?? videos.find((v: any) => v.video_url)?.video_url;
           job.status = "complete";
           job.progress = 100;
-          win.rpc.send("onBatchProgress", {
+          rpc.send("onBatchProgress", {
             jobId: job.id,
             status: "complete",
             progress: 100,
@@ -696,7 +699,7 @@ win.rpc.on({
         } catch (err: any) {
           job.status = "failed";
           job.error = err.message ?? "Unknown error";
-          win.rpc.send("onBatchProgress", {
+          rpc.send("onBatchProgress", {
             jobId: job.id,
             status: "failed",
             progress: 0,
@@ -713,13 +716,13 @@ win.rpc.on({
     return { batchId };
   },
 
-  getBatchStatus: async ({ batchId }) => {
+  getBatchStatus: async ({ batchId }: { batchId: string }) => {
     const batch = batchStore.get(batchId);
     if (!batch) throw new Error("Batch not found");
     return batch;
   },
 
-  cancelBatch: async ({ batchId }) => {
+  cancelBatch: async ({ batchId }: { batchId: string }) => {
     const batch = batchStore.get(batchId);
     if (batch) {
       batch.isRunning = false;
@@ -733,7 +736,7 @@ win.rpc.on({
     return { success: true };
   },
 
-  exportBatchResults: async ({ batchId, format }) => {
+  exportBatchResults: async ({ batchId, format }: { batchId: string; format: "zip" | "individual" }) => {
     const batch = batchStore.get(batchId);
     if (!batch) throw new Error("Batch not found");
 
@@ -756,7 +759,7 @@ win.rpc.on({
 // Forward ComfyUI connection updates to renderer
 comfy.onConnectionChange((connection) => {
   try {
-    win.rpc.send("onComfyUIUpdate", { connection });
+    rpc.send("onComfyUIUpdate", { connection });
   } catch {}
 });
 

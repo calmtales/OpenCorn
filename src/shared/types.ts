@@ -121,6 +121,7 @@ export interface Toast {
 }
 
 // RPC contract: Bun-side handlers (callable from renderer)
+// messages: payload types for messages this side *sends* to the webview
 export interface BunRPC {
   requests: {
     submitIdea: (args: {
@@ -163,7 +164,14 @@ export interface BunRPC {
     cancelBatch: (args: { batchId: string }) => { success: boolean };
     exportBatchResults: (args: { batchId: string; format: "zip" | "individual" }) => { path: string };
   };
-  messages: {};
+  messages: {
+    onPipelineUpdate: { status: PipelineStatus };
+    onStoryboardReady: { storyboard: Storyboard };
+    onVideoReady: { videoUrl: string };
+    onToast: { toast: Toast };
+    onComfyUIUpdate: { connection: ComfyUIConnection };
+    onBatchProgress: { jobId: string; status: BatchJob["status"]; progress: number };
+  };
 }
 
 // --- ComfyUI Types ---
@@ -282,14 +290,15 @@ export interface BatchState {
 }
 
 // RPC contract: Webview-side handlers (callable from Bun)
+// messages: payload types for messages this side *receives* from bun
 export interface WebviewRPC {
   requests: {};
   messages: {
-    onPipelineUpdate: (args: { status: PipelineStatus }) => void;
-    onStoryboardReady: (args: { storyboard: Storyboard }) => void;
-    onVideoReady: (args: { videoUrl: string }) => void;
-    onToast: (args: { toast: Toast }) => void;
-    onComfyUIUpdate: (args: { connection: ComfyUIConnection }) => void;
-    onBatchProgress: (args: { jobId: string; status: BatchJob["status"]; progress: number }) => void;
+    onPipelineUpdate: { status: PipelineStatus };
+    onStoryboardReady: { storyboard: Storyboard };
+    onVideoReady: { videoUrl: string };
+    onToast: { toast: Toast };
+    onComfyUIUpdate: { connection: ComfyUIConnection };
+    onBatchProgress: { jobId: string; status: BatchJob["status"]; progress: number };
   };
 }

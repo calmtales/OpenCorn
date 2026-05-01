@@ -1,10 +1,14 @@
 import { Electroview } from "electrobun/view";
 import { createRoot } from "react-dom/client";
 import type { BunRPC, WebviewRPC } from "../shared/types";
+import type { ElectrobunRPCSchema } from "electrobun/view";
 import App from "./App";
 
+// Combined schema satisfying ElectrobunRPCSchema
+type AppRPCSchema = { bun: BunRPC; webview: WebviewRPC } & ElectrobunRPCSchema;
+
 // Set up typed RPC with Bun side
-const rpc = Electroview.defineRPC<WebviewRPC>({
+const rpc = Electroview.defineRPC<AppRPCSchema>({
   handlers: {
     requests: {},
     messages: {
