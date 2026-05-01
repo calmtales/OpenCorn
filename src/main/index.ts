@@ -1,4 +1,4 @@
-import { BrowserWindow } from "electrobun/bun";
+import { BrowserWindow, defineElectrobunRPC, type ElectrobunRPCSchema } from "electrobun/bun";
 import type {
   BunRPC,
   WebviewRPC,
@@ -16,6 +16,7 @@ import type {
   RecommendedModel,
   BatchJob,
   BatchState,
+  Toast,
 } from "../shared/types";
 import { DEFAULT_SETTINGS } from "../shared/types";
 import { ComfyUIClient } from "./comfyui";
@@ -327,14 +328,62 @@ const workflowStore = new Map<
 const batchStore = new Map<string, BatchState>();
 let batchCounter = 0;
 
-const win = new BrowserWindow({
-  title: "OpenCorn — AI Film Studio",
-  url: "views://main/index.html",
+// RPC schema: bun handles requests from renderer, sends messages to renderer
+interface AppRPCSchema extends ElectrobunRPCSchema {
+  bun: {
+    requests: {
+      submitIdea: { params: { idea: string; style: FilmStyle; settings: AppSettings }; response: { workflowId: string } };
+      getStoryboard: { params: { workflowId: string }; response: Storyboard };
+      pollStatus: { params: { workflowId: string }; response: PipelineStatus };
+      getVideo: { params: { workflowId: string }; response: { videoUrl: string } };
+      listWorkflows: { params: undefined; response: { workflows: WorkflowSummary[] } };
+      deleteWorkflow: { params: { workflowId: string }; response: { success: boolean } };
+      resumeWorkflow: { params: { workflowId: string }; response: { workflowId: string } };
+      updateScene: { params: { workflowId: string; sceneId: string; updates: Partial<Scene> }; response: { success: boolean } };
+      getSettings: { params: undefined; response: AppSettings };
+      saveSettings: { params: { settings: AppSettings }; response: { success: boolean } };
+      comfyConnect: { params: { url: string }; response: { success: boolean; models: ComfyUIModel[] } };
+      comfyDisconnect: { params: undefined; response: { success: boolean } };
+      comfyGetStatus: { params: undefined; response: ComfyUIConnection };
+      comfyScanModels: { params: undefined; response: { models: ComfyUIModel[] } };
+      comfyImportWorkflow: { params: { json: string }; response: { workflow: ComfyUIWorkflow } };
+      comfyExportWorkflow: { params: { workflowId: string }; response: { json: string } };
+      comfySubmitPrompt: { params: { workflowId: string; inputs: Record<string, unknown> }; response: { promptId: string } };
+      comfyPollStatus: { params: { promptId: string }; response: ComfyUIQueueItem };
+      comfyListQueue: { params: undefined; response: { queue: ComfyUIQueueItem[] } };
+      scanLocalModels: { params: { dir?: string }; response: { models: LocalModel[] } };
+      getRecommendedModels: { params: undefined; response: { models: RecommendedModel[] } };
+      downloadModel: { params: { modelId: string; url: string }; response: { success: boolean } };
+      getVramInfo: { params: undefined; response: { totalMb: number; usedMb: number; freeMb: number } };
+      benchmarkModel: { params: { modelId: string }; response: { latencyMs: number } };
+      submitBatch: { params: { jobs: { idea: string; style: FilmStyle }[]; concurrency: number }; response: { batchId: string } };
+      getBatchStatus: { params: { batchId: string }; response: BatchState };
+      cancelBatch: { params: { batchId: string }; response: { success: boolean } };
+      exportBatchResults: { params: { batchId: string; format: "zip" | "individual" }; response: { path: string } };
+    };
+    messages: {};
+  };
+  webview: {
+    requests: {};
+    messages: {
+      onPipelineUpdate: { status: PipelineStatus };
+      onStoryboardReady: { storyboard: Storyboard };
+      onVideoReady: { videoUrl: string };
+      onToast: { toast: Toast };
+      onComfyUIUpdate: { connection: ComfyUIConnection };
+      onBatchProgress: { jobId: string; status: BatchJob["status"]; progress: number };
+    };
+  };
+}
+
+// Create RPC first, then window — Electrobun wires transport automatically
+const rpc = defineElectrobunRPC<AppRPCSchema, "bun">("bun", {
+  handlers: { requests: {}, messages: {} },
 });
 
-// Wire up Bun-side RPC handlers on the window's RPC bus
-const rpc = (win as any).rpc;
-rpc.on({
+// Set request handlers (called async by Electrobun, so `rpc` is fully initialized
+// by the time any handler closure executes — safe to reference rpc.send())
+rpc.setRequestHandler({
   submitIdea: async ({ idea, style, settings }: { idea: string; style: FilmStyle; settings: AppSettings }) => {
     currentSettings = settings ?? currentSettings;
     mcp.setServerUrl(currentSettings.mcpServerUrl);
@@ -752,6 +801,13 @@ rpc.on({
 
     return { path: outputDir };
   },
+});
+
+// Create window — pass the pre-wired RPC so BrowserView connects the transport
+const win = new BrowserWindow({
+  title: "OpenCorn — AI Film Studio",
+  url: "views://main/index.html",
+  rpc,
 });
 
 // Forward ComfyUI connection updates to renderer
