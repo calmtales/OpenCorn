@@ -332,11 +332,9 @@ const win = new BrowserWindow({
   url: "views://main/index.html",
 });
 
-// Wire up Bun-side RPC handlers — access rpc via webview (BrowserWindow delegates to BrowserView)
-// Cast: BrowserView.rpc is typed as RPCWithTransport (only setTransport), but the runtime
-// object returned by defineElectrobunRPC includes setRequestHandler/send from createRPC
-const rpc = win.webview!.rpc! as any;
-rpc.setRequestHandler({
+// Wire up Bun-side RPC handlers on the window's RPC bus
+const rpc = (win as any).rpc;
+rpc.on({
   submitIdea: async ({ idea, style, settings }: { idea: string; style: FilmStyle; settings: AppSettings }) => {
     currentSettings = settings ?? currentSettings;
     mcp.setServerUrl(currentSettings.mcpServerUrl);
