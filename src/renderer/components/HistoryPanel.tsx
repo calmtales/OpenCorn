@@ -9,6 +9,10 @@ const STYLE_ICONS: Record<FilmStyle, string> = {
   watercolor: "🎨",
   realistic: "📷",
   "stop-motion": "🧸",
+  arcane: "💎",
+  ghibli: "🌿",
+  "oil-painting": "🖼️",
+  claymation: "🧱",
 };
 
 const STATUS_COLORS: Record<string, string> = {

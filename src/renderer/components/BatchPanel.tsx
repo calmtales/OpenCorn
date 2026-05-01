@@ -506,7 +506,7 @@ export function BatchPanel({ onClose }: Props) {
               <div style={s.queueStats}>
                 <span><span style={s.statDot("var(--success)")}>{completedCount}</span> done</span>
                 <span><span style={s.statDot("var(--accent)")}>{totalCount - completedCount - failedCount}</span> active</span>
-                <span><span style={s.statDot("var(--error)")">{failedCount}</span> failed</span>
+                <span><span style={s.statDot("var(--error)")}>{failedCount}</span> failed</span>
                 <span>{totalCount} total</span>
               </div>
               <div style={{ display: "flex", gap: 6 }}>
