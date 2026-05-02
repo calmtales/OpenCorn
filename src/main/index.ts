@@ -51,28 +51,80 @@ class McpClient {
     this.serverUrl = url;
   }
 
+  /** Resolve the Python binary — prefer venv, then python3.14, then python3 */
+  private resolvePython(): string {
+    const venvPython = "/tmp/stoira-mcp/.venv/bin/python3";
+    // Bun.file.exists is not available at runtime; use fs sync check
+    try {
+      const { existsSync } = require("fs");
+      if (existsSync(venvPython)) return venvPython;
+    } catch {}
+    return "python3";
+  }
+
   async connect(): Promise<boolean> {
     try {
       // Parse server URL — support stdio:// and tcp:// schemes
       let cmd: string[];
+      const python = this.resolvePython();
       if (this.serverUrl.startsWith("stdio://")) {
         const script = this.serverUrl.slice("stdio://".length);
-        cmd = ["python3", `/tmp/stoira-mcp/${script}`, "--transport", "stdio"];
+        cmd = [python, `/tmp/stoira-mcp/${script}`, "--transport", "stdio"];
       } else {
-        cmd = ["python3", "/tmp/stoira-mcp/stoira_mcp_server.py", "--transport", "stdio"];
+        cmd = [python, "/tmp/stoira-mcp/stoira_mcp_server.py", "--transport", "stdio"];
       }
 
       this.proc = Bun.spawn(cmd, {
         stdio: ["pipe", "pipe", "pipe"],
-        stderr: "inherit",
+        stderr: "pipe",
+        env: {
+          ...process.env,
+          // If using a venv, set VIRTUAL_ENV so child processes know
+          ...(python.includes(".venv") ? { VIRTUAL_ENV: "/tmp/stoira-mcp/.venv" } : {}),
+        },
       });
 
+      // Collect stderr for diagnostics
+      const stderrChunks: string[] = [];
+      const stderrReader = this.proc.stderr?.getReader();
+      const drainStderr = async () => {
+        const decoder = new TextDecoder();
+        try {
+          while (true) {
+            const { done, value } = await stderrReader!.read();
+            if (done) break;
+            stderrChunks.push(decoder.decode(value, { stream: true }));
+          }
+        } catch {}
+      };
+      drainStderr();
+
+      // Clean up pending promises on process exit
       this.proc.exited.then(() => {
         this.connected = false;
         this.initialized = false;
+        // Reject all pending requests
+        for (const [id, { reject }] of this.pending) {
+          reject(new Error("MCP process exited unexpectedly"));
+        }
+        this.pending.clear();
       });
 
+      // Start reading stdout
       this.readLoop();
+
+      // Detect early process exit (e.g. missing Python deps, wrong interpreter)
+      await Bun.sleep(500);
+      if (this.proc.exitCode !== null) {
+        const stderr = stderrChunks.join("").trim();
+        const hint = stderr.includes("ModuleNotFoundError")
+          ? "\nHint: run 'cd /tmp/stoira-mcp && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt'"
+          : "";
+        throw new Error(
+          `MCP server exited immediately (code ${this.proc.exitCode}).${hint}\n${stderr}`
+        );
+      }
+
       this.connected = true;
 
       // MCP initialize handshake
@@ -81,6 +133,8 @@ class McpClient {
     } catch (err) {
       console.error("MCP connect failed:", err);
       this.connected = false;
+      this.proc?.kill();
+      this.proc = null;
       return false;
     }
   }
@@ -142,6 +196,10 @@ class McpClient {
     if (!this.proc?.stdin || !this.connected)
       throw new Error("MCP not connected");
 
+    // Guard against process that exited after connect() validated it
+    if (this.proc.exitCode !== null)
+      throw new Error(`MCP process exited (code ${this.proc.exitCode})`);
+
     const id = ++this.requestId;
     const msg = JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n";
 
@@ -154,7 +212,7 @@ class McpClient {
           this.pending.delete(id);
           reject(new Error("MCP request timed out"));
         }
-      }, 120_000);
+      }, 30_000);
     });
   }
 
