@@ -16,8 +16,10 @@ export default {
     views: {
       main: {
         entrypoint: "src/renderer/index.tsx",
-        staticAssets: ["index.html"],
       },
+    },
+    copy: {
+      "index.html": "views/main/index.html",
     },
   },
 } satisfies ElectrobunConfig;
