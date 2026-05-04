@@ -184,7 +184,7 @@ export async function expandNode(
         tone: "divergent" as const,
       };
     });
-    store.addBranches(nodeId, prepared, "agent", "hermes-brainstorm");
+    store.addBranches(nodeId, prepared, "agent", "brainstorm");
   } catch (err) {
     if (isAbortError(err)) return;
     const message = err instanceof Error ? err.message : "unknown error";

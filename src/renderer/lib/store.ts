@@ -461,7 +461,7 @@ export const useStory = create<StoreState>()((set, get) => {
 
     closeInsertModal: () => set({ insertContext: null }),
 
-    addBranches: (parentId, branches, decidedBy = "agent", agentName = "hermes-brainstorm", question) => {
+    addBranches: (parentId, branches, decidedBy = "agent", agentName = "brainstorm", question) => {
       const newIds: string[] = [];
       set((s) => {
         const parent = s.nodes.get(parentId);

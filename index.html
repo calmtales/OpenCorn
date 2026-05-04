@@ -265,6 +265,30 @@
         }
       }
 
+      /* Arrow bounce on CTA buttons */
+      @keyframes arrowBounce {
+        0%, 100% { transform: translateX(0); }
+        50% { transform: translateX(4px); }
+      }
+
+      /* Splash screen motion */
+      @keyframes splashRingPulse {
+        0%, 100% { transform: scale(1); opacity: 0.35; }
+        50% { transform: scale(1.25); opacity: 0; }
+      }
+      @keyframes splashIconPulse {
+        0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0px transparent); }
+        50% { transform: scale(1.06); filter: drop-shadow(0 0 14px rgba(232, 93, 38, 0.45)); }
+      }
+      @keyframes splashAccentIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
       /* Phase 3: Branching canvas animations */
       @keyframes tickerSweep {
         0% { transform: translateX(-100%); }

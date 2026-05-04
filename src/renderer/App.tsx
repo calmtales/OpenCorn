@@ -8,7 +8,9 @@ import { SplashScreen } from "./components/SplashScreen";
 import { SeedInput } from "./components/SeedInput";
 import { Canvas, ReactFlowProvider } from "./components/Canvas";
 import { AgentTicker } from "./components/AgentTicker";
-import { useStory, modeLabels, modeRenderType } from "./lib/store";
+import { BeatChooser } from "./components/BeatChooser";
+import { useStory, modeLabels, modeRenderType, selectCanonPath } from "./lib/store";
+import { useShallow } from "zustand/react/shallow";
 import type { IndustryMode } from "./lib/types";
 import { useFilmPipeline } from "./hooks/useFilmPipeline";
 import { useToast } from "./hooks/useToast";
@@ -260,6 +262,75 @@ function pipelineStatusText(stage: string, progress: number): string | null {
   return `${label} ${progress}%`;
 }
 
+/** Breadcrumb trail: canon path from root → current beat, clickable. */
+function BreadcrumbTrail() {
+  const canonPathArr = useStory(useShallow(selectCanonPath));
+  const nodes = useStory((s) => s.nodes);
+  const setCurrent = useStory((s) => s.setCurrent);
+
+  if (canonPathArr.length <= 1) return null;
+
+  const crumbStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    letterSpacing: "0.18em",
+    textTransform: "uppercase",
+    cursor: "pointer",
+    padding: "2px 6px",
+    borderRadius: "var(--radius-sm)",
+    transition: "all 0.12s ease",
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 2,
+        padding: "4px 20px",
+        background: "var(--bg-secondary)",
+        borderBottom: "1px solid var(--border-subtle)",
+        flexShrink: 0,
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+      }}
+      role="navigation"
+      aria-label="Story path breadcrumb"
+    >
+      {canonPathArr.map((nodeId, idx) => {
+        const node = nodes.get(nodeId);
+        if (!node) return null;
+        const isLast = idx === canonPathArr.length - 1;
+        const shortTitle = node.title.length > 30 ? node.title.slice(0, 28) + "…" : node.title;
+        return (
+          <span key={nodeId} style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+            {idx > 0 && (
+              <span style={{ color: "rgba(170,185,205,0.25)", fontSize: 10, margin: "0 2px" }}>›</span>
+            )}
+            <button
+              type="button"
+              onClick={() => setCurrent(nodeId, "human")}
+              style={{
+                ...crumbStyle,
+                color: isLast ? "#4fc3f7" : "rgba(170,185,205,0.55)",
+                fontWeight: isLast ? 600 : 400,
+                background: isLast ? "rgba(79,195,247,0.08)" : "transparent",
+                border: "none",
+              }}
+              title={node.title}
+            >
+              {shortTitle}
+            </button>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function App() {
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -454,6 +525,31 @@ export default function App() {
             <span style={styles.logoText}>
               <span style={styles.logoAccent}>Open</span>Corn
             </span>
+            {/* ← Projects quick nav */}
+            <button
+              style={{
+                marginLeft: 14,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "3px 8px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: "var(--radius-sm)",
+                background: "transparent",
+                color: "var(--text-muted)",
+                fontSize: 10,
+                fontFamily: "var(--font-mono)",
+                letterSpacing: "0.18em",
+                textTransform: "uppercase" as const,
+                cursor: "pointer",
+                transition: "all var(--duration-fast) var(--ease-out)",
+              }}
+              onClick={() => useStory.getState().resetToLanding()}
+              title="Back to project start"
+              aria-label="Back to projects"
+            >
+              ← projects
+            </button>
           </div>
 
           <nav style={styles.headerCenter} role="navigation" aria-label="Main navigation">
@@ -493,15 +589,6 @@ export default function App() {
             >
               🎨 Presets
             </button>
-            {/* Back to landing */}
-            <button
-              style={styles.headerBtn(false)}
-              onClick={() => useStory.getState().resetToLanding()}
-              title="Back to seed input"
-              aria-label="Return to seed input"
-            >
-              ✦ New Story
-            </button>
           </nav>
 
           <div style={styles.headerRight}>
@@ -522,12 +609,16 @@ export default function App() {
           </div>
         </div>
 
+        {/* Breadcrumb trail — canon path from root to current beat */}
+        <BreadcrumbTrail />
+
         {/* Canvas body — full ReactFlow + overlays */}
         <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
           <ReactFlowProvider>
             <Canvas />
           </ReactFlowProvider>
           <AgentTicker />
+          <BeatChooser />
 
           {/* Floating side panels */}
           {sidePanel === "settings" && (
@@ -556,45 +647,57 @@ export default function App() {
           )}
         </div>
 
-        {/* Status bar — canvas mode info */}
-        <div style={styles.statusBar} role="status" aria-live="polite">
-          <div style={styles.stageLabel}>
-            <div
+        {/* Status bar — slim, non-intrusive canvas info */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "3px 16px",
+            background: "var(--bg-secondary)",
+            borderTop: "1px solid var(--border-subtle)",
+            fontSize: 10,
+            color: "var(--text-muted)",
+            fontFamily: "var(--font-mono)",
+            letterSpacing: "0.14em",
+            flexShrink: 0,
+          }}
+          role="status"
+          aria-live="polite"
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span
               style={{
-                ...styles.progressDot,
+                display: "inline-block",
+                width: 4,
+                height: 4,
+                borderRadius: "50%",
                 background: pipeline.stage === "complete" ? "#4caf50" : pipeline.stage === "idle" ? "#4fc3f7" : "#ff9800",
                 boxShadow: pipeline.stage === "idle"
-                  ? "0 0 6px rgba(79,195,247,0.4)"
+                  ? "0 0 5px rgba(79,195,247,0.35)"
                   : pipeline.stage === "complete"
-                    ? "0 0 6px rgba(76,175,80,0.4)"
-                    : "0 0 6px rgba(255,152,0,0.4)",
+                    ? "0 0 5px rgba(76,175,80,0.35)"
+                    : "0 0 5px rgba(255,152,0,0.35)",
               }}
               aria-hidden="true"
             />
-            <span>Canvas · {storyNodes.size} {modeLabels(industryMode).beat.toLowerCase()}s</span>
+            <span style={{ textTransform: "uppercase", opacity: 0.7 }}>
+              {storyNodes.size} {modeLabels(industryMode).beat.toLowerCase()}s
+            </span>
             {pipelineStatusText(pipeline.stage, pipeline.progress) && (
-              <>
-                <span style={{ color: "var(--text-muted)" }}>·</span>
-                <span style={{
-                  color: pipeline.stage === "complete" ? "#4caf50" : "var(--accent)",
-                  fontSize: 11,
-                  fontWeight: 500,
-                }}>
-                  {pipelineStatusText(pipeline.stage, pipeline.progress)}
-                </span>
-              </>
+              <span style={{
+                color: pipeline.stage === "complete" ? "#4caf50" : "var(--accent)",
+                fontWeight: 500,
+              }}>
+                · {pipelineStatusText(pipeline.stage, pipeline.progress)}
+              </span>
             )}
           </div>
-          <div style={styles.shortcutsHint}>
-            <span>
-              <span style={styles.kbd} aria-hidden="true">⌘,</span> Settings
+          <div style={{ display: "flex", alignItems: "center", gap: 10, opacity: 0.5 }}>
+            <span style={{ fontSize: 9 }}>
+              <span style={styles.kbd} aria-hidden="true">⌘/</span> shortcuts
             </span>
-            <span>
-              <span style={styles.kbd} aria-hidden="true">⌘/</span> Shortcuts
-            </span>
-            <span style={{ color: "var(--text-muted)", fontSize: 9, fontFamily: "var(--font-mono)" }}>
-              v{VERSION} · {industryMode}
-            </span>
+            <span style={{ fontSize: 9 }}>v{VERSION}</span>
           </div>
         </div>
 

@@ -281,7 +281,7 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
   const displayLabel = isShell
     ? "new moment"
     : node.status === "generating" && !node.title
-      ? "Hermes weaving…"
+      ? "Agent weaving…"
       : node.label || node.title;
 
   return (
@@ -365,7 +365,7 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
             }}
           >
             <Lock size={12} style={{ marginRight: 6, opacity: 0.7 }} />
-            {isShell ? "new beat weaving…" : "hermes imagining…"}
+            {isShell ? "new beat weaving…" : "agent imagining…"}
           </div>
         )}
       </div>
@@ -559,7 +559,7 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
               }}
             >
               <Lock size={12} style={{ marginRight: 8, opacity: 0.7 }} />
-              {isShell ? "new beat weaving…" : "hermes weaving…"}
+              {isShell ? "new beat weaving…" : "agent weaving…"}
             </div>
           )}
 

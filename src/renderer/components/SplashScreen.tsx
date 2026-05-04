@@ -28,19 +28,29 @@ export function SplashScreen({ onComplete, duration = 1800 }: Props) {
   return (
     <div style={{ ...styles.container, opacity: fadeOut ? 0 : 1 }}>
       <div style={styles.content}>
-        {/* App icon */}
-        <div style={styles.icon}>
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+        {/* App icon — animated glow ring */}
+        <div style={styles.iconWrap}>
+          <div style={styles.iconRing} />
+          <svg
+            width="64"
+            height="64"
+            viewBox="0 0 64 64"
+            fill="none"
+            style={{ animation: "splashIconPulse 1.8s ease-in-out infinite" }}
+          >
             <rect x="4" y="4" width="56" height="56" rx="12" fill="var(--accent)" />
             <path d="M22 18L44 32L22 46V18Z" fill="var(--bg-primary)" />
           </svg>
         </div>
 
-        {/* App name */}
+        {/* App name — staggered reveal */}
         <div style={styles.name}>
-          <span style={styles.nameAccent}>Open</span>Corn
+          <span style={{ ...styles.nameAccent, animation: "splashAccentIn 0.6s ease-out 0.3s both" }}>Open</span>
+          <span style={{ animation: "splashAccentIn 0.6s ease-out 0.5s both" }}>Corn</span>
         </div>
-        <div style={styles.tagline}>AI Film Studio</div>
+        <div style={styles.tagline}>
+          <span style={{ animation: "fadeInUp 0.5s ease-out 0.7s both" }}>AI Film Studio</span>
+        </div>
 
         {/* Progress bar */}
         <div style={styles.progressTrack}>
@@ -76,8 +86,21 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 16,
   },
-  icon: {
-    animation: "pulse 2s ease-in-out infinite",
+  iconWrap: {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 96,
+    height: 96,
+  },
+  iconRing: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: "50%",
+    border: "1.5px solid var(--accent)",
+    opacity: 0.35,
+    animation: "splashRingPulse 2.2s ease-in-out infinite",
   },
   name: {
     fontSize: 28,

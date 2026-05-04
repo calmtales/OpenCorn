@@ -1,9 +1,9 @@
 /*  ──────────────────────────────────────────────────────────────────────
  *  SeedInput — landing page with seed prompt + industry mode
- *  Noustiny-style, ported for OpenCorn (inline CSS, no Tailwind)
+ *  Noustiny-inspired, ported for OpenCorn (inline CSS, no Tailwind)
  *  ────────────────────────────────────────────────────────────────────── */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useStory, DEMO_SEED } from "../lib/store";
 import type { IndustryMode } from "../lib/types";
 
@@ -284,6 +284,14 @@ export function SeedInput({ onSubmit }: Props = {}) {
 
   const examples = MODE_EXAMPLES[industry];
 
+  // Animated subtitle rotation
+  const [subtitleIdx, setSubtitleIdx] = useState(0);
+  const SUBTITLE_WORDS = ["Branching narrative engine", "Tactical story canvas", "AI story studio"];
+  useEffect(() => {
+    const t = setInterval(() => setSubtitleIdx((i) => (i + 1) % SUBTITLE_WORDS.length), 3200);
+    return () => clearInterval(t);
+  }, []);
+
   return (
     <div style={styles.container}>
       <div aria-hidden style={styles.backdrop} />
@@ -299,7 +307,7 @@ export function SeedInput({ onSubmit }: Props = {}) {
         <div style={styles.heroInner}>
           <div style={styles.subtitle}>
             <span style={styles.subtitleLine} />
-            ✦ Branching narrative engine
+            ✦ {SUBTITLE_WORDS[subtitleIdx]}
           </div>
           <h1 style={styles.h1}>
             Every choice is a universe.<br />
@@ -307,7 +315,7 @@ export function SeedInput({ onSubmit }: Props = {}) {
           </h1>
           <p style={styles.description}>
             Drop a scene, a memory, or a decision you can't stop rehearsing.
-            A council of Hermes agents will branch it into the lives it could
+            A council of AI agents will branch it into the lives it could
             have been — and let you walk into any of them.
           </p>
 
@@ -382,7 +390,7 @@ export function SeedInput({ onSubmit }: Props = {}) {
             >
               {[
                 { label: "seed", color: "rgba(230,236,244,0.78)" },
-                { label: "hermes", color: "#e9c16b" },
+                { label: "agent", color: "#e9c16b" },
                 { label: "canvas", color: "#4fc3f7" },
               ].map((s, i, arr) => (
                 <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -431,7 +439,7 @@ export function SeedInput({ onSubmit }: Props = {}) {
               }}
             >
               Enter the divergence
-              <span style={{ fontSize: 15 }}>→</span>
+              <span style={{ fontSize: 15, display: "inline-block", animation: "arrowBounce 1.2s ease-in-out infinite" }}>→</span>
             </button>
           </div>
         </div>
@@ -440,7 +448,7 @@ export function SeedInput({ onSubmit }: Props = {}) {
       {/* Bottom chrome */}
       <div style={styles.bottomBar}>
         <span>no login · all in your browser</span>
-        <span>open source · hermes ai</span>
+        <span>open source · ai agents</span>
       </div>
     </div>
   );
