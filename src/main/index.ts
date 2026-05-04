@@ -20,6 +20,13 @@ import type {
 } from "../shared/types";
 import { DEFAULT_SETTINGS } from "../shared/types";
 import { ComfyUIClient } from "./comfyui";
+import {
+  findServerDir,
+  resolvePython,
+  buildMcpArgs,
+  buildMcpEnv,
+  SERVER_SCRIPT,
+} from "./mcp-discovery";
 
 // Map UI FilmStyle to stoira-mcp anime_style enum
 const STYLE_MAP: Record<FilmStyle, string> = {
@@ -51,37 +58,23 @@ class McpClient {
     this.serverUrl = url;
   }
 
-  /** Resolve the Python binary — prefer venv, then python3.14, then python3 */
-  private resolvePython(): string {
-    const venvPython = "/tmp/stoira-mcp/.venv/bin/python3";
-    // Bun.file.exists is not available at runtime; use fs sync check
-    try {
-      const { existsSync } = require("fs");
-      if (existsSync(venvPython)) return venvPython;
-    } catch {}
-    return "python3";
-  }
-
   async connect(): Promise<boolean> {
     try {
-      // Parse server URL — support stdio:// and tcp:// schemes
-      let cmd: string[];
-      const python = this.resolvePython();
-      if (this.serverUrl.startsWith("stdio://")) {
-        const script = this.serverUrl.slice("stdio://".length);
-        cmd = [python, `/tmp/stoira-mcp/${script}`, "--transport", "stdio"];
-      } else {
-        cmd = [python, "/tmp/stoira-mcp/stoira_mcp_server.py", "--transport", "stdio"];
+      const serverDir = findServerDir();
+      if (!serverDir) {
+        throw new Error(
+          `Could not find ${SERVER_SCRIPT}. Searched: OPENCOORN_MCP_SERVER_DIR, ` +
+          `$CWD/stoira-mcp, $HOME/stoira-mcp, $HOME/.stoira/mcp, /tmp/stoira-mcp`
+        );
       }
+
+      const cmd = buildMcpArgs(this.serverUrl, serverDir);
+      const python = resolvePython(serverDir);
 
       this.proc = Bun.spawn(cmd, {
         stdio: ["pipe", "pipe", "pipe"],
         stderr: "pipe",
-        env: {
-          ...process.env,
-          // If using a venv, set VIRTUAL_ENV so child processes know
-          ...(python.includes(".venv") ? { VIRTUAL_ENV: "/tmp/stoira-mcp/.venv" } : {}),
-        },
+        env: buildMcpEnv(python, serverDir),
       });
 
       // Collect stderr for diagnostics
@@ -117,8 +110,9 @@ class McpClient {
       await Bun.sleep(500);
       if (this.proc.exitCode !== null) {
         const stderr = stderrChunks.join("").trim();
+        const serverDir = findServerDir() ?? "/path/to/stoira-mcp";
         const hint = stderr.includes("ModuleNotFoundError")
-          ? "\nHint: run 'cd /tmp/stoira-mcp && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt'"
+          ? `\nHint: run 'cd ${serverDir} && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt'`
           : "";
         throw new Error(
           `MCP server exited immediately (code ${this.proc.exitCode}).${hint}\n${stderr}`

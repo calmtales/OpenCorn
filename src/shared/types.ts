@@ -19,7 +19,7 @@ export type PipelineStage =
   | "stitching"
   | "complete";
 
-export type VideoProvider = "sora2" | "seedance" | "wan";
+export type VideoProvider = "ltx" | "sora2" | "seedance" | "wan";
 export type ImageProvider = "nano_banana" | "seedream" | "gemini";
 export type AspectRatio = "9:16" | "16:9" | "1:1";
 export type ExportFormat = "mp4" | "webm" | "mov";
@@ -47,7 +47,7 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   mcpServerUrl: "stdio://stoira_mcp_server.py",
-  videoProvider: "sora2",
+  videoProvider: "ltx",
   imageProvider: "nano_banana",
   aspectRatio: "16:9",
   sceneCount: 5,

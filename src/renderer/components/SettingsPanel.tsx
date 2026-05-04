@@ -11,6 +11,7 @@ import type {
 import { DEFAULT_SETTINGS } from "../../shared/types";
 
 const VIDEO_PROVIDERS: { value: VideoProvider; label: string }[] = [
+  { value: "ltx", label: "S-Video" },
   { value: "sora2", label: "Sora 2" },
   { value: "seedance", label: "Seedance" },
   { value: "wan", label: "WAN" },

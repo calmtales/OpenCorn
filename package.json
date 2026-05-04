@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "electrobun dev",
     "build": "electrobun build",
-    "package": "electrobun package"
+    "package": "electrobun package",
+    "test": "bun test src/main/__tests__ src/shared/__tests__"
   },
   "dependencies": {
     "@xyflow/react": "^12.10.2",
