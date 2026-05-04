@@ -3,13 +3,13 @@
  *  writer-assist, critic/rewriter/judge cascade, image gen, copyright
  *  detection, and character sheet generation.
  *
- *  Simplified for OpenCorn Phase 3 — stubs that emit agent events and
- *  call /api/hermes on the Hermes gateway. Replace with real endpoints
- *  when the backend is wired up.
+ *  All skill calls go through the Hermes gateway at localhost:8642
+ *  via hermes-gateway.ts (OpenAI-compatible chat completions).
  *  ────────────────────────────────────────────────────────────────────── */
 
 import { useStory, modeStylePrefix, modeLabels, modeRenderType } from "./store";
-import type { AgentEvent, AgentId, BranchSuggestion, IndustryMode, NodeMood, NodeTone } from "./types";
+import type { AgentEvent, AgentId, BranchSuggestion, IndustryMode, NodeMood, NodeTone, StoryNode } from "./types";
+import { callSkillStream, consumeSSEStream } from "./hermes-gateway";
 
 // ---- helpers ----------------------------------------------------------------
 
@@ -21,7 +21,7 @@ const tickerId = (() => {
 function agentEvent(
   agent: AgentId,
   label: string,
-  model = "gemini-2.5-flash",
+  model = "deepseek-v4-flash",
 ): AgentEvent {
   return {
     id: tickerId(),
@@ -71,6 +71,26 @@ function isAbortError(err: unknown): boolean {
   return false;
 }
 
+/**
+ * Depth-first walk of all downstream node IDs from a given node.
+ */
+function collectDownstream(
+  startId: string,
+  nodes: Map<string, StoryNode>,
+): string[] {
+  const result: string[] = [];
+  function walk(id: string) {
+    const n = nodes.get(id);
+    if (!n) return;
+    for (const childId of n.childrenIds) {
+      result.push(childId);
+      walk(childId);
+    }
+  }
+  walk(startId);
+  return result;
+}
+
 // ---- expandNode (brainstorm) ------------------------------------------------
 
 const inflightExpand = new Set<string>();
@@ -101,28 +121,33 @@ export async function expandNode(
   if (isShell) store.markGenerating(nodeId, true);
 
   try {
-    const res = await fetch("/api/hermes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        kind: "brainstorm",
-        seed: store.seed,
-        canonTitles,
-        focusTitle: node.title,
-        focusBody: node.body ?? node.summary,
-        focusMood: node.mood,
-        branches: branchCount,
-        industryMode: store.industryMode,
-      }),
+    // Build a natural-language prompt for the brainstorm skill
+    const canonBlock = canonTitles.length > 0
+      ? canonTitles.map((t, i) => `${i + 1}. ${t}`).join("\n")
+      : "(story start)";
+    const focusBody = node.body ?? node.summary ?? "";
+
+    const userMessage = [
+      `Seed: ${store.seed}`,
+      "",
+      `Canon path:`,
+      canonBlock,
+      "",
+      `Current beat: "${node.title}"`,
+      focusBody,
+      `Mood: ${node.mood}`,
+      "",
+      `Branch into ${branchCount} new checkpoint options.`,
+    ].join("\n");
+
+    const res = await callSkillStream("noustiny-narrative-brainstorm", userMessage, {
+      maxTokens: 2048,
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      store.updateAgent(ev.id, { status: "error", text: text.slice(0, 240) });
-      return;
-    }
+    const raw = await consumeSSEStream(res, (text) => {
+      store.updateAgent(ev.id, { status: "streaming", text });
+    });
 
-    const raw = await consumeStream(res, ev.id);
     const { options } = parseBrainstormText(raw);
 
     if (options.length === 0) {
@@ -194,26 +219,19 @@ export async function writerAssist(args: {
   store.appendAgent(ev);
 
   try {
-    const res = await fetch("/api/hermes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        kind: "writer-assist",
-        seed: store.seed,
-        canonTitles: canonTitlesUpTo(args.parentId),
-        parentTitle: parent.title,
-        childTitle: child.title,
-        intent: args.intent,
-        mode: args.mode,
-        industryMode: store.industryMode,
-      }),
+    const res = await callSkillStream("noustiny-narrative-writer-assist", {
+      seed: store.seed,
+      canonTitles: canonTitlesUpTo(args.parentId),
+      parentTitle: parent.title,
+      childTitle: child.title,
+      intent: args.intent,
+      mode: args.mode,
+    }, { maxTokens: 1024 });
+
+    const raw = await consumeSSEStream(res, (text) => {
+      store.updateAgent(ev.id, { status: "streaming", text });
     });
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      store.updateAgent(ev.id, { status: "error", text: text.slice(0, 240) });
-      return null;
-    }
-    const raw = await consumeStream(res, ev.id);
+
     const data = parseJsonSafe(raw) as {
       title: string; summary: string; body: string;
       imagePrompt: string; mood: string; tone: string;
@@ -237,37 +255,160 @@ export async function writerAssist(args: {
   }
 }
 
-// ---- reharmonize (critic → rewriter → judge) --------------------------------
+// ---- reharmonize chain (critic → rewriter → judge) --------------------------
 
 const inflightReharmonize = new Set<string>();
 
 export async function reharmonize({
   insertedNodeId,
 }: { insertedNodeId: string }): Promise<void> {
-  if (inflightReharmonize.has(insertedNodeId)) return;
-  inflightReharmonize.add(insertedNodeId);
+  return reharmonizeChain(insertedNodeId);
+}
+
+export async function reharmonizeChain(insertId: string): Promise<void> {
+  if (inflightReharmonize.has(insertId)) return;
+  inflightReharmonize.add(insertId);
 
   const store = useStory.getState();
-  const ev = agentEvent("director", `REHARMONIZE · cascading from "${insertedNodeId}"`);
+  const insertNode = store.nodes.get(insertId);
+  if (!insertNode) { inflightReharmonize.delete(insertId); return; }
+
+  const ev = agentEvent(
+    "director",
+    `REHARMONIZE · cascading from "${insertNode.title.slice(0, 40)}"`,
+  );
   store.appendAgent(ev);
 
   try {
-    const res = await fetch("/api/hermes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: "reharmonize", insertedNodeId }),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => res.statusText);
-      store.updateAgent(ev.id, { status: "error", text: text.slice(0, 240) });
+    const downstream = collectDownstream(insertId, store.nodes);
+    if (downstream.length === 0) {
+      store.updateAgent(ev.id, {
+        status: "done",
+        text: "No downstream nodes to reharmonize.",
+      });
       return;
     }
-    store.updateAgent(ev.id, { status: "done", text: "Reharmonize complete" });
+
+    // recentChain tracks the live state of already-processed downstream beats
+    const recentChain: Array<{ title: string; body: string }> = [];
+    let rewritten = 0;
+
+    for (const nodeId of downstream) {
+      // Re-read store each iteration (state may change from applyRewrite)
+      const freshStore = useStory.getState();
+      const node = freshStore.nodes.get(nodeId);
+      if (!node) continue;
+
+      const insertBody = insertNode.body ?? insertNode.summary;
+      const nodeBody = node.body ?? node.summary;
+
+      // ── Step 1: Critic ──
+      const criticRes = await callSkillStream(
+        "noustiny-narrative-continuity-critic",
+        {
+          insertTitle: insertNode.title,
+          insertBody,
+          nodeTitle: node.title,
+          nodeBody,
+          recentChain,
+        },
+        { maxTokens: 512 },
+      );
+      const criticRaw = await consumeSSEStream(criticRes);
+      const critic = parseJsonSafe(criticRaw) as {
+        verdict: string;
+        reason: string;
+        severity: number;
+      };
+
+      if (critic.verdict === "still_valid") {
+        recentChain.push({ title: node.title, body: nodeBody });
+        continue;
+      }
+
+      if (critic.verdict === "must_delete") {
+        // Leave the node in place but mark it; director can delete later
+        recentChain.push({ title: node.title, body: nodeBody });
+        continue;
+      }
+
+      // ── Step 2: Rewriter (needs_rewrite) ──
+      const rewriterRes = await callSkillStream(
+        "noustiny-narrative-rewriter",
+        {
+          insertTitle: insertNode.title,
+          insertBody,
+          nodeTitle: node.title,
+          nodeBody,
+          criticReason: critic.reason,
+          recentChain,
+        },
+        { maxTokens: 1024 },
+      );
+      const rewriterRaw = await consumeSSEStream(rewriterRes);
+      const rewrite = parseJsonSafe(rewriterRaw) as {
+        title: string;
+        summary: string;
+        body: string;
+        imagePrompt: string;
+        mood: string;
+        reason: string;
+      };
+
+      // ── Step 3: Judge ──
+      const judgeRes = await callSkillStream(
+        "noustiny-narrative-judge",
+        {
+          insertTitle: insertNode.title,
+          insertBody,
+          originalTitle: node.title,
+          originalBody: nodeBody,
+          rewrittenTitle: rewrite.title,
+          rewrittenBody: rewrite.body,
+          recentChain,
+        },
+        { maxTokens: 512 },
+      );
+      const judgeRaw = await consumeSSEStream(judgeRes);
+      const judge = parseJsonSafe(judgeRaw) as {
+        approved: boolean;
+        score: number;
+        reason: string;
+      };
+
+      if (judge.approved) {
+        useStory.getState().applyRewrite(
+          nodeId,
+          {
+            title: rewrite.title.slice(0, 200),
+            summary: rewrite.summary.slice(0, 400),
+            body: rewrite.body,
+            imagePrompt: rewrite.imagePrompt ?? rewrite.summary,
+            mood: validateMood(rewrite.mood),
+          },
+          "reharmonize",
+          judge.reason,
+        );
+        recentChain.push({ title: rewrite.title, body: rewrite.body });
+        rewritten++;
+      } else {
+        // Rejected — keep original
+        recentChain.push({ title: node.title, body: nodeBody });
+      }
+    }
+
+    store.updateAgent(ev.id, {
+      status: "done",
+      text: `Reharmonized ${downstream.length} nodes · ${rewritten} rewritten`,
+    });
   } catch (err) {
     if (isAbortError(err)) return;
-    store.updateAgent(ev.id, { status: "error", text: (err as Error).message });
+    store.updateAgent(ev.id, {
+      status: "error",
+      text: (err as Error).message,
+    });
   } finally {
-    inflightReharmonize.delete(insertedNodeId);
+    inflightReharmonize.delete(insertId);
   }
 }
 
@@ -289,29 +430,15 @@ export async function generateNodeImage(
   store.appendAgent({ ...ev, status: "streaming" });
 
   try {
-    const render = modeRenderType(store.industryMode);
     const imgStyleSuffix = modeStylePrefix(store.industryMode);
-    const res = await fetch("/api/hermes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        kind: "image-gen",
-        prompt: prompt.slice(0, 400) + ", " + imgStyleSuffix,
-        style: store.industryMode,
-        aspect: render.aspectRatio,
-      }),
-    });
-    if (!res.ok) {
-      store.updateAgent(ev.id, { status: "error", text: "image gen failed" });
-      return;
-    }
-    const data = (await res.json()) as { url?: string };
-    if (data.url) {
-      useStory.getState().setNodeImage(nodeId, data.url);
-      store.updateAgent(ev.id, { status: "done", text: "image cached" });
-    } else {
-      store.updateAgent(ev.id, { status: "error", text: "no image returned" });
-    }
+    const render = modeRenderType(store.industryMode);
+    // Use Pollinations directly — no Hermes skill needed for image gen
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(
+      prompt.slice(0, 400) + ", " + imgStyleSuffix,
+    )}?width=480&height=300&seed=${Date.now()}&model=flux&nologo=true`;
+
+    useStory.getState().setNodeImage(nodeId, url);
+    store.updateAgent(ev.id, { status: "done", text: "image cached" });
   } catch {
     // swallow — placeholder stays
   } finally {
@@ -330,16 +457,24 @@ export async function detectStoryPolicy(seed: string): Promise<void> {
   store.appendAgent({ ...ev, status: "streaming" });
 
   try {
-    const res = await fetch("/api/hermes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: "copyright-detect", seed }),
+    const res = await callSkillStream(
+      "noustiny-story-copyright-detector",
+      { seed },
+      { maxTokens: 512 },
+    );
+    const raw = await consumeSSEStream(res, (text) => {
+      store.updateAgent(ev.id, { status: "streaming", text });
     });
-    if (!res.ok) {
-      store.updateAgent(ev.id, { status: "done", text: "detection skipped" });
-      return;
-    }
-    store.updateAgent(ev.id, { status: "done", text: "detection complete" });
+    const data = parseJsonSafe(raw) as {
+      ip_level?: string;
+      franchise?: string | null;
+      model_preference?: string;
+      reason?: string;
+    };
+    store.updateAgent(ev.id, {
+      status: "done",
+      text: data.reason ?? `IP: ${data.ip_level ?? "unknown"} · ${data.model_preference ?? "default"}`,
+    });
   } catch {
     store.updateAgent(ev.id, { status: "done", text: "detection skipped" });
   }
@@ -353,23 +488,27 @@ export async function generateCharacterSheet(seed: string): Promise<void> {
   store.appendAgent({ ...ev, status: "streaming" });
 
   try {
-    const res = await fetch("/api/hermes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind: "character-sheet", seed }),
+    const res = await callSkillStream(
+      "noustiny-character-sheet-builder",
+      { seed, franchise: null, allow_ip_names: false },
+      { maxTokens: 2048 },
+    );
+    const raw = await consumeSSEStream(res, (text) => {
+      store.updateAgent(ev.id, { status: "streaming", text });
     });
-    if (!res.ok) {
-      store.updateAgent(ev.id, { status: "error", text: "skill call failed" });
-      return;
-    }
-    const data = (await res.json()) as {
-      characters?: { name: string; description: string }[];
-    };
-    const entries = data.characters ?? [];
-    if (entries.length === 0) {
+
+    // Skill returns a JSON array directly: [{ name, description, portrait_prompt }]
+    const entries = parseJsonSafe(raw) as Array<{
+      name: string;
+      description: string;
+      portrait_prompt?: string;
+    }>;
+
+    if (!Array.isArray(entries) || entries.length === 0) {
       store.updateAgent(ev.id, { status: "done", text: "no characters detected" });
       return;
     }
+
     const descriptions: Record<string, string> = {};
     for (const e of entries) descriptions[e.name] = e.description;
     store.mergeCharacters(descriptions);
@@ -380,29 +519,6 @@ export async function generateCharacterSheet(seed: string): Promise<void> {
   } catch {
     store.updateAgent(ev.id, { status: "error", text: "character-sheet error" });
   }
-}
-
-// ---- stream consumer --------------------------------------------------------
-
-async function consumeStream(
-  res: Response,
-  agentId: string,
-): Promise<string> {
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error("No response body");
-  const decoder = new TextDecoder();
-  let acc = "";
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      acc += decoder.decode(value, { stream: true });
-      useStory.getState().updateAgent(agentId, { status: "streaming", text: acc });
-    }
-  } finally {
-    useStory.getState().updateAgent(agentId, { status: "streaming", text: acc });
-  }
-  return acc;
 }
 
 // ---- brainstorm text parser -------------------------------------------------
@@ -501,6 +617,11 @@ function parseJsonSafe(raw: string): unknown {
   const match = cleaned.match(/\{[\s\S]*\}/);
   if (match) {
     try { return JSON.parse(match[0]); } catch { /* continue */ }
+  }
+  // Also try array format (for character sheet)
+  const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+  if (arrMatch) {
+    try { return JSON.parse(arrMatch[0]); } catch { /* continue */ }
   }
   throw new Error("Hermes returned non-JSON");
 }

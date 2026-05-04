@@ -142,6 +142,8 @@ export interface BunRPC {
     }) => { success: boolean };
     getSettings: () => AppSettings;
     saveSettings: (args: { settings: AppSettings }) => { success: boolean };
+    // Hermes
+    loadSkill: (args: { skillName: string }) => { content: string };
     // ComfyUI
     comfyConnect: (args: { url: string }) => { success: boolean; models: ComfyUIModel[] };
     comfyDisconnect: () => { success: boolean };

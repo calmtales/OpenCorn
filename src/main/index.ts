@@ -400,6 +400,7 @@ interface AppRPCSchema extends ElectrobunRPCSchema {
       updateScene: { params: { workflowId: string; sceneId: string; updates: Partial<Scene> }; response: { success: boolean } };
       getSettings: { params: undefined; response: AppSettings };
       saveSettings: { params: { settings: AppSettings }; response: { success: boolean } };
+      loadSkill: { params: { skillName: string }; response: { content: string } };
       comfyConnect: { params: { url: string }; response: { success: boolean; models: ComfyUIModel[] } };
       comfyDisconnect: { params: undefined; response: { success: boolean } };
       comfyGetStatus: { params: undefined; response: ComfyUIConnection };
@@ -539,6 +540,25 @@ rpc.setRequestHandler({
   saveSettings: async ({ settings }: { settings: AppSettings }) => {
     currentSettings = settings;
     return { success: true };
+  },
+
+  // --- Hermes: load skill from filesystem ---
+  loadSkill: async ({ skillName }: { skillName: string }) => {
+    const { readFileSync, existsSync } = await import("fs");
+    const { join } = await import("path");
+    const skillPath = join(
+      process.env.HOME ?? "/home/ec2-user",
+      ".hermes",
+      "skills",
+      "creative",
+      skillName,
+      "SKILL.md",
+    );
+    if (!existsSync(skillPath)) {
+      throw new Error(`Skill not found: ${skillName} (looked in ${skillPath})`);
+    }
+    const content = readFileSync(skillPath, "utf-8");
+    return { content };
   },
 
   // --- ComfyUI ---
