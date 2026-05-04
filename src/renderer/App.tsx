@@ -1,29 +1,31 @@
 import { useState, useCallback, lazy, Suspense, useEffect } from "react";
 import type { FilmStyle, Storyboard, AppSettings, Scene, StylePreset } from "../shared/types";
-import { IdeaInput } from "./components/IdeaInput";
-import { StoryboardGrid } from "./components/StoryboardGrid";
-import { TimelineBar } from "./components/TimelineBar";
-import { PlayerPreview } from "./components/PlayerPreview";
 import { McpStatus } from "./components/McpStatus";
-import { ExportPanel } from "./components/ExportPanel";
-import { HistoryPanel } from "./components/HistoryPanel";
-import { PromptCraft } from "./components/PromptCraft";
 import { ShortcutsModal } from "./components/ShortcutsModal";
 import { ToastContainer } from "./components/ToastContainer";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SplashScreen } from "./components/SplashScreen";
+import { SeedInput } from "./components/SeedInput";
+import { Canvas, ReactFlowProvider } from "./components/Canvas";
+import { AgentTicker } from "./components/AgentTicker";
+import { useStory } from "./lib/store";
 import { useFilmPipeline } from "./hooks/useFilmPipeline";
 import { useToast } from "./hooks/useToast";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 
-// Lazy load heavy panels — only bundle when opened
-const ComfyUIPanel = lazy(() => import("./components/ComfyUIPanel").then(m => ({ default: m.ComfyUIPanel })));
-const LocalModels = lazy(() => import("./components/LocalModels").then(m => ({ default: m.LocalModels })));
+// Lazy load — commented out for Phase 3 refactor (source files kept)
+// const ComfyUIPanel = lazy(() => import("./components/ComfyUIPanel").then(m => ({ default: m.ComfyUIPanel })));
+// const LocalModels = lazy(() => import("./components/LocalModels").then(m => ({ default: m.LocalModels })));
 const PresetGallery = lazy(() => import("./components/PresetGallery").then(m => ({ default: m.PresetGallery })));
-const BatchPanel = lazy(() => import("./components/BatchPanel").then(m => ({ default: m.BatchPanel })));
+// const BatchPanel = lazy(() => import("./components/BatchPanel").then(m => ({ default: m.BatchPanel })));
 const SettingsPanel = lazy(() => import("./components/SettingsPanel").then(m => ({ default: m.SettingsPanel })));
 
-type SidePanel = "settings" | "history" | "promptcraft" | "comfyui" | "localmodels" | "presets" | "batch" | null;
+// Phase 3 imports — kept for use in canvas-mode header
+import { ExportPanel } from "./components/ExportPanel";
+import { HistoryPanel } from "./components/HistoryPanel";
+import { PromptCraft } from "./components/PromptCraft";
+
+type SidePanel = "settings" | "history" | "promptcraft" | "presets" | null;
 
 const VERSION = "0.4.0";
 
@@ -242,35 +244,20 @@ function PanelSuspense({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [highContrast, setHighContrast] = useState(() => {
     try { return localStorage.getItem("opencorn-high-contrast") === "true"; } catch { return false; }
   });
+
+  // Zustand branching canvas state
+  const mode = useStory((s) => s.mode);
+  const storyNodes = useStory((s) => s.nodes);
+
+  // Existing film pipeline (kept for MCP + render flow)
   const pipeline = useFilmPipeline();
   const toast = useToast();
-
-  const activeStoryboard = pipeline.storyboard ?? storyboard;
-
-  // Screen reader announcements for pipeline stage changes
-  useEffect(() => {
-    const announcer = document.getElementById("sr-announcer");
-    if (announcer) {
-      const stageLabels: Record<string, string> = {
-        generating_screenplay: "Generating screenplay",
-        generating_keyframes: "Rendering keyframes",
-        generating_video: "Generating video",
-        processing_audio: "Processing audio",
-        stitching: "Stitching final render",
-        complete: "Film generation complete",
-      };
-      const label = stageLabels[pipeline.stage];
-      if (label) announcer.textContent = label;
-    }
-  }, [pipeline.stage]);
 
   // High contrast mode toggle
   useEffect(() => {
@@ -278,114 +265,62 @@ export default function App() {
     try { localStorage.setItem("opencorn-high-contrast", String(highContrast)); } catch {}
   }, [highContrast]);
 
-  // Auto-save settings every 30s
-  useEffect(() => {
-    const interval = setInterval(() => {
-      try {
-        const rpc = (window as any).__electrobun_rpc;
-        rpc?.request?.saveSettings?.({ settings: pipeline.settings }).catch(() => {});
-      } catch {}
-    }, 30_000);
-    return () => clearInterval(interval);
-  }, [pipeline.settings]);
-
-  const handleSubmit = useCallback(
-    async (idea: string, style: FilmStyle) => {
-      try {
-        await pipeline.submitIdea(idea, style);
-      } catch (err) {
-        toast.error("Failed to start generation. Check MCP connection.");
-      }
-    },
-    [pipeline, toast]
-  );
-
   const togglePanel = useCallback(
     (panel: SidePanel) => {
       setSidePanel((prev) => (prev === panel ? null : panel));
     },
-    []
-  );
-
-  const handleResume = useCallback(
-    (workflowId: string) => {
-      pipeline.resumeWorkflow(workflowId);
-    },
-    [pipeline]
-  );
-
-  const handleSceneUpdate = useCallback(
-    (sceneId: string, updates: Partial<Scene>) => {
-      pipeline.updateScene(sceneId, updates);
-    },
-    [pipeline]
+    [],
   );
 
   const handleSettingsChange = useCallback(
     (settings: AppSettings) => {
       pipeline.updateSettings(settings);
     },
-    [pipeline]
+    [pipeline],
   );
 
   const handleEscape = useCallback(() => {
-    if (showShortcuts) {
-      setShowShortcuts(false);
-    } else if (sidePanel) {
-      setSidePanel(null);
-    }
+    if (showShortcuts) setShowShortcuts(false);
+    else if (sidePanel) setSidePanel(null);
   }, [sidePanel, showShortcuts]);
 
-  const handlePresetApply = useCallback(
-    (preset: StylePreset) => {
-      pipeline.updateSettings({
-        ...pipeline.settings,
-        style: preset.style,
-        aspectRatio: preset.aspectRatio,
-        sceneCount: preset.sceneCount,
-      });
-    },
-    [pipeline]
-  );
-
   useKeyboardShortcuts({
-    onSubmit: () => {
-      if (pipeline.stage === "idle" || pipeline.stage === "complete") {
-        // Handled by IdeaInput's own handler
-      }
-    },
     onSettings: () => togglePanel("settings"),
     onHistory: () => togglePanel("history"),
     onPromptCraft: () => togglePanel("promptcraft"),
-    onComfyUI: () => togglePanel("comfyui"),
-    onLocalModels: () => togglePanel("localmodels"),
     onPresets: () => togglePanel("presets"),
-    onBatch: () => togglePanel("batch"),
     onShortcuts: () => setShowShortcuts((v) => !v),
     onEscape: handleEscape,
   });
-
-  const stageLabels: Record<string, string> = {
-    idle: "Ready",
-    generating_screenplay: "Writing screenplay...",
-    generating_keyframes: "Rendering keyframes...",
-    generating_video: "Generating video...",
-    processing_audio: "Processing audio...",
-    stitching: "Stitching final render...",
-    complete: "Complete",
-  };
-
-  const isActive = pipeline.stage !== "idle";
 
   if (showSplash) {
     return <SplashScreen onComplete={() => setShowSplash(false)} />;
   }
 
+  // ─── Landing mode ───────────────────────────────────────────────────
+  if (mode === "landing") {
+    return (
+      <ErrorBoundary>
+        <div style={styles.app}>
+          <SeedInput />
+          <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
+          {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+        </div>
+      </ErrorBoundary>
+    );
+  }
+
+  // ─── Canvas mode ────────────────────────────────────────────────────
   return (
     <ErrorBoundary>
       <div style={styles.app}>
-        {/* Screen reader live region for pipeline announcements */}
-        <div id="sr-announcer" aria-live="polite" aria-atomic="true" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }} />
+        {/* Screen reader live region */}
+        <div
+          id="sr-announcer"
+          aria-live="polite"
+          aria-atomic="true"
+          style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0,0,0,0)" }}
+        />
 
         {/* Header */}
         <div style={styles.header} role="banner">
@@ -399,7 +334,6 @@ export default function App() {
             </span>
           </div>
 
-          {/* Center nav buttons */}
           <nav style={styles.headerCenter} role="navigation" aria-label="Main navigation">
             <button
               style={styles.headerBtn(sidePanel === "settings")}
@@ -408,11 +342,7 @@ export default function App() {
               aria-label="Open settings panel"
               aria-pressed={sidePanel === "settings"}
             >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                <circle cx="7" cy="7" r="2.5" stroke="currentColor" strokeWidth="1.2" />
-                <path d="M7 1v2M7 11v2M1 7h2M11 7h2M2.8 2.8l1.4 1.4M9.8 9.8l1.4 1.4M11.2 2.8l-1.4 1.4M4.2 9.8l-1.4 1.4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-              Settings
+              ⚙ Settings
             </button>
             <button
               style={styles.headerBtn(sidePanel === "history")}
@@ -421,11 +351,7 @@ export default function App() {
               aria-label="Open workflow history"
               aria-pressed={sidePanel === "history"}
             >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
-                <path d="M7 4v3l2.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-              History
+              🕐 History
             </button>
             <button
               style={styles.headerBtn(sidePanel === "promptcraft")}
@@ -434,26 +360,7 @@ export default function App() {
               aria-label="Open prompt editor"
               aria-pressed={sidePanel === "promptcraft"}
             >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                <path d="M2 11l3-8 3.5 5L12 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx="11" cy="11" r="2" stroke="currentColor" strokeWidth="1.2" />
-              </svg>
-              Craft
-            </button>
-            <button
-              style={styles.headerBtn(sidePanel === "comfyui")}
-              onClick={() => togglePanel("comfyui")}
-              title="ComfyUI (Cmd+K)"
-              aria-label="Open ComfyUI panel"
-              aria-pressed={sidePanel === "comfyui"}
-            >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
-                <rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
-                <rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
-                <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
-              </svg>
-              ComfyUI
+              📊 Craft
             </button>
             <button
               style={styles.headerBtn(sidePanel === "presets")}
@@ -462,38 +369,16 @@ export default function App() {
               aria-label="Open style presets"
               aria-pressed={sidePanel === "presets"}
             >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                <rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor" opacity="0.3" />
-                <rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor" opacity="0.6" />
-                <rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor" opacity="0.9" />
-                <rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" />
-              </svg>
-              Presets
+              🎨 Presets
             </button>
+            {/* Back to landing */}
             <button
-              style={styles.headerBtn(sidePanel === "batch")}
-              onClick={() => togglePanel("batch")}
-              title="Batch Mode (Cmd+B)"
-              aria-label="Open batch processing"
-              aria-pressed={sidePanel === "batch"}
+              style={styles.headerBtn(false)}
+              onClick={() => useStory.getState().resetToLanding()}
+              title="Back to seed input"
+              aria-label="Return to seed input"
             >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                <path d="M2 3h10M2 7h10M2 11h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-              Batch
-            </button>
-            <button
-              style={styles.headerBtn(sidePanel === "localmodels")}
-              onClick={() => togglePanel("localmodels")}
-              title="Local Models (Cmd+L)"
-              aria-label="Open local models manager"
-              aria-pressed={sidePanel === "localmodels"}
-            >
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                <path d="M7 1v6M4 4l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M2 9v3a1 1 0 001 1h8a1 1 0 001-1v-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-              </svg>
-              Models
+              ✦ New Story
             </button>
           </nav>
 
@@ -502,7 +387,6 @@ export default function App() {
               style={styles.highContrastBtn(highContrast)}
               onClick={() => setHighContrast((v) => !v)}
               aria-label={highContrast ? "Disable high contrast mode" : "Enable high contrast mode"}
-              aria-pressed={highContrast}
               title="Toggle high contrast"
             >
               HC
@@ -515,175 +399,68 @@ export default function App() {
           </div>
         </div>
 
-        {/* Progress bar */}
-        {isActive && (
-          <div style={styles.progressBar} role="progressbar" aria-valuenow={pipeline.progress} aria-valuemin={0} aria-valuemax={100} aria-label={`Generation progress: ${pipeline.progress}%`}>
-            <div style={{ ...styles.progressFill, width: `${pipeline.progress}%` }} />
-          </div>
-        )}
+        {/* Canvas body — full ReactFlow + overlays */}
+        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+          <ReactFlowProvider>
+            <Canvas />
+          </ReactFlowProvider>
+          <AgentTicker />
 
-        {/* Main area */}
-        <div style={styles.main}>
-          {/* Sidebar with IdeaInput */}
-          <div style={{ ...styles.sidebar(sidebarCollapsed), position: "relative" as const }}>
-            {!sidebarCollapsed && (
-              <IdeaInput
-                onSubmit={handleSubmit}
-                disabled={pipeline.stage !== "idle" && pipeline.stage !== "complete"}
-              />
-            )}
-            <button
-              style={styles.sidebarToggle}
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            >
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-                <path
-                  d={sidebarCollapsed ? "M2 1l5 4-5 4" : "M8 1L3 5l5 4"}
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          </div>
-
-          <div style={styles.content}>
-            <div style={styles.viewport}>
-              <div style={styles.storyboardArea}>
-                <StoryboardGrid storyboard={activeStoryboard} />
-              </div>
-              <div style={styles.previewPanel}>
-                <PlayerPreview
-                  videoUrl={pipeline.videoUrl}
-                  scenes={activeStoryboard?.scenes}
-                />
-              </div>
+          {/* Floating side panels */}
+          {sidePanel === "settings" && (
+            <div style={styles.sidePanel} role="dialog" aria-label="Settings panel" aria-modal="true">
+              <PanelSuspense>
+                <SettingsPanel onClose={() => setSidePanel(null)} onSettingsChange={handleSettingsChange} />
+              </PanelSuspense>
             </div>
-            <div style={styles.timelineArea}>
-              <TimelineBar storyboard={activeStoryboard} />
+          )}
+          {sidePanel === "history" && (
+            <div style={styles.sidePanel} role="dialog" aria-label="History panel" aria-modal="true">
+              <HistoryPanel onClose={() => setSidePanel(null)} onResume={() => {}} />
             </div>
-
-            {/* Floating side panels */}
-            {sidePanel === "settings" && (
-              <div style={styles.sidePanel} role="dialog" aria-label="Settings panel" aria-modal="true">
-                <PanelSuspense>
-                  <SettingsPanel
-                    onClose={() => setSidePanel(null)}
-                    onSettingsChange={handleSettingsChange}
-                  />
-                </PanelSuspense>
-              </div>
-            )}
-            {sidePanel === "history" && (
-              <div style={styles.sidePanel} role="dialog" aria-label="History panel" aria-modal="true">
-                <HistoryPanel
-                  onClose={() => setSidePanel(null)}
-                  onResume={handleResume}
-                />
-              </div>
-            )}
-            {sidePanel === "promptcraft" && (
-              <div style={styles.sidePanel} role="dialog" aria-label="Prompt editor panel" aria-modal="true">
-                <PromptCraft
-                  storyboard={activeStoryboard}
-                  onSceneUpdate={handleSceneUpdate}
-                  onClose={() => setSidePanel(null)}
-                />
-              </div>
-            )}
-            {sidePanel === "comfyui" && (
-              <div style={styles.sidePanel} role="dialog" aria-label="ComfyUI panel" aria-modal="true">
-                <PanelSuspense>
-                  <ComfyUIPanel onClose={() => setSidePanel(null)} />
-                </PanelSuspense>
-              </div>
-            )}
-            {sidePanel === "localmodels" && (
-              <div style={styles.sidePanel} role="dialog" aria-label="Local models panel" aria-modal="true">
-                <PanelSuspense>
-                  <LocalModels onClose={() => setSidePanel(null)} />
-                </PanelSuspense>
-              </div>
-            )}
-            {sidePanel === "presets" && (
-              <div style={styles.sidePanel} role="dialog" aria-label="Style presets panel" aria-modal="true">
-                <PanelSuspense>
-                  <PresetGallery onClose={() => setSidePanel(null)} onApply={handlePresetApply} />
-                </PanelSuspense>
-              </div>
-            )}
-            {sidePanel === "batch" && (
-              <div style={styles.sidePanel} role="dialog" aria-label="Batch processing panel" aria-modal="true">
-                <PanelSuspense>
-                  <BatchPanel onClose={() => setSidePanel(null)} />
-                </PanelSuspense>
-              </div>
-            )}
-          </div>
+          )}
+          {sidePanel === "promptcraft" && (
+            <div style={styles.sidePanel} role="dialog" aria-label="Prompt editor panel" aria-modal="true">
+              <PromptCraft storyboard={null} onSceneUpdate={() => {}} onClose={() => setSidePanel(null)} />
+            </div>
+          )}
+          {sidePanel === "presets" && (
+            <div style={styles.sidePanel} role="dialog" aria-label="Style presets panel" aria-modal="true">
+              <PanelSuspense>
+                <PresetGallery onClose={() => setSidePanel(null)} onApply={() => {}} />
+              </PanelSuspense>
+            </div>
+          )}
         </div>
 
-        {/* Status bar */}
+        {/* Status bar — canvas mode info */}
         <div style={styles.statusBar} role="status" aria-live="polite">
           <div style={styles.stageLabel}>
             <div
               style={{
                 ...styles.progressDot,
-                background:
-                  pipeline.stage === "complete"
-                    ? "var(--success)"
-                    : pipeline.stage === "idle"
-                      ? "var(--text-muted)"
-                      : "var(--accent)",
-                boxShadow:
-                  pipeline.stage !== "idle" && pipeline.stage !== "complete"
-                    ? "0 0 6px var(--accent-glow)"
-                    : pipeline.stage === "complete"
-                      ? "0 0 6px var(--success-muted)"
-                      : "none",
+                background: "#4fc3f7",
+                boxShadow: "0 0 6px rgba(79,195,247,0.4)",
               }}
               aria-hidden="true"
             />
-            <span>{stageLabels[pipeline.stage] ?? pipeline.stage}</span>
-            {pipeline.error && (
-              <span style={{ color: "var(--error)", marginLeft: 8 }}>
-                {pipeline.error}
-              </span>
-            )}
+            <span>Canvas · {storyNodes.size} beats</span>
           </div>
           <div style={styles.shortcutsHint}>
-            <span>
-              <span style={styles.kbd} aria-hidden="true">⌘↵</span> <span className="sr-only">Cmd+Enter to</span> Generate
-            </span>
             <span>
               <span style={styles.kbd} aria-hidden="true">⌘,</span> Settings
             </span>
             <span>
-              <span style={styles.kbd} aria-hidden="true">⌘K</span> ComfyUI
-            </span>
-            <span>
-              <span style={styles.kbd} aria-hidden="true">⌘B</span> Batch
-            </span>
-            <span>
               <span style={styles.kbd} aria-hidden="true">⌘/</span> Shortcuts
             </span>
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>
-              {isActive ? `${pipeline.progress}%` : ""}
-            </span>
             <span style={{ color: "var(--text-muted)", fontSize: 9, fontFamily: "var(--font-mono)" }}>
-              v{VERSION}
+              v{VERSION} · phase 3
             </span>
           </div>
         </div>
 
-        {/* Toast notifications */}
         <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
-
-        {/* Keyboard shortcuts modal */}
-        {showShortcuts && (
-          <ShortcutsModal onClose={() => setShowShortcuts(false)} />
-        )}
+        {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
       </div>
     </ErrorBoundary>
   );
