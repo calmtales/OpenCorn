@@ -320,6 +320,16 @@ export const useStory = create<StoreState>()((set, get) => {
       set((s) => {
         const target = s.nodes.get(nodeId);
         if (!target) return {};
+        // Bail out early if already current — avoids creating a new Map
+        // reference that forces every store subscriber (Canvas, StoryEdge, etc.)
+        // to re-render for no visual change.
+        if (
+          s.currentId === nodeId &&
+          target.decidedBy === decidedBy &&
+          (!agentName || target.decidedByAgent === agentName)
+        ) {
+          return {};
+        }
         const next = new Map(s.nodes);
         const patched = { ...target, decidedBy, decidedByAgent: agentName };
         next.set(nodeId, patched);

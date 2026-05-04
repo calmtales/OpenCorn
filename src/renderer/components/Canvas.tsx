@@ -3,7 +3,7 @@
  *  Ported for OpenCorn (inline CSS, no Tailwind, no framer-motion)
  *  ────────────────────────────────────────────────────────────────────── */
 
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useMemo } from "react";
 import {
   MiniMap,
   Panel,
@@ -15,6 +15,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { useStory, selectCanonPath } from "../lib/store";
+import { useShallow } from "zustand/react/shallow";
 import type { StoryNode } from "../lib/types";
 import { nodeTypes } from "./StoryNode";
 import { edgeTypes } from "./StoryEdge";
@@ -93,15 +94,23 @@ const styles = {
 function InnerCanvas() {
   const nodes = useStory((s) => s.nodes);
   const currentId = useStory((s) => s.currentId);
-  const canonPathArr = useStory(selectCanonPath);
+  // useShallow ensures we only re-render when the canon path *contents* change,
+  // not on every store mutation (selectCanonPath returns a new array every time).
+  const canonPathArr = useStory(useShallow(selectCanonPath));
   const setSelected = useStory((s) => s.setSelected);
   const setCurrent = useStory((s) => s.setCurrent);
   const { setCenter, fitView } = useReactFlow();
   const hasFitRef = useRef(false);
   const lastCenteredIdRef = useRef<string | null>(null);
 
-  const canonSet = new Set(canonPathArr);
-  const { rfNodes, rfEdges } = toReactFlow(nodes, canonSet);
+  const canonSet = useMemo(() => new Set(canonPathArr), [canonPathArr]);
+
+  // Memoize toReactFlow — keep node object references stable so ReactFlow's
+  // controlled-mode reconciliation doesn't see false-positive prop changes.
+  const { rfNodes, rfEdges } = useMemo(
+    () => toReactFlow(nodes, canonSet),
+    [nodes, canonSet],
+  );
 
   // Initial fitView — center on current beat exactly once.
   useEffect(() => {

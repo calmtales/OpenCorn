@@ -797,6 +797,90 @@ describe("ComfyUI Connection", () => {
   });
 });
 
+describe("setCurrent no-loop guard", () => {
+  // Regression: setCurrent must bail out when clicking the already-current
+  // node, otherwise it creates a new Map reference on every call which
+  // forces all store subscribers to re-render, feeding a
+  // "Maximum update depth exceeded" loop with ReactFlow's controlled mode.
+  //
+  // Tests use a fresh store via resetToLanding() to avoid cross-test pollution.
+
+  test("setCurrent(id) when id is already current does not create new Map", () => {
+    const { useStory } = require("../src/renderer/lib/store");
+    useStory.getState().resetToLanding();
+
+    const s = useStory.getState();
+    expect(s.currentId).toBe("root");
+    const nodesBefore = s.nodes;
+
+    // Clicking root again — should bail out (no-op) because already current
+    s.setCurrent("root");
+    const after = useStory.getState();
+
+    // Map reference MUST be the same — no new Map, no cascade re-renders
+    expect(after.nodes).toBe(nodesBefore);
+    expect(after.currentId).toBe("root");
+    // selectedId stays null (guard returns {} before setting it)
+    expect(after.selectedId).toBeNull();
+  });
+
+  test("setCurrent(newId) when id differs creates a new Map and updates status", () => {
+    const { useStory } = require("../src/renderer/lib/store");
+    useStory.getState().resetToLanding();
+
+    const branchIds = useStory.getState().addBranches("root", [
+      { title: "Alt scene", summary: "s", body: "b", imagePrompt: "p", mood: "neutral", tone: "divergent" },
+    ]);
+    expect(branchIds.length).toBe(1);
+
+    const beforeMap = useStory.getState().nodes;
+    useStory.getState().setCurrent(branchIds[0]);
+    const after = useStory.getState();
+
+    // Map reference should be new (status/layout changed)
+    expect(after.nodes).not.toBe(beforeMap);
+    expect(after.currentId).toBe(branchIds[0]);
+    expect(after.selectedId).toBe(branchIds[0]);
+
+    // Verify the node was actually promoted to current
+    const node = after.nodes.get(branchIds[0]);
+    expect(node?.status).toBe("current");
+  });
+
+  test("setCurrent with decidedBy change still creates new Map", () => {
+    const { useStory } = require("../src/renderer/lib/store");
+    useStory.getState().resetToLanding();
+
+    const s = useStory.getState();
+    expect(s.currentId).toBe("root");
+
+    // Click with agent decidedBy (different from default "human")
+    s.setCurrent("root", "agent", "hermes-brainstorm");
+    const after = useStory.getState();
+
+    // Should have created new Map because decidedBy changed
+    expect(after.nodes).not.toBe(s.nodes);
+    const node = after.nodes.get("root");
+    expect(node?.decidedBy).toBe("agent");
+    expect(node?.decidedByAgent).toBe("hermes-brainstorm");
+  });
+
+  test("repeated setCurrent(sameId, 'human') produces zero Map churn", () => {
+    const { useStory } = require("../src/renderer/lib/store");
+    useStory.getState().resetToLanding();
+
+    // Call setCurrent("root") with default decidedBy="human" 5 times
+    // — each should be a no-op since root is already current with decidedBy="human"
+    const map0 = useStory.getState().nodes;
+    for (let i = 0; i < 5; i++) {
+      useStory.getState().setCurrent("root");
+    }
+
+    // Map reference unchanged — zero churn
+    expect(useStory.getState().nodes).toBe(map0);
+  });
+});
+
 describe("Error Handling", () => {
   let mcp: MockMcpServer;
   let pipeline: MockPipelineController;
