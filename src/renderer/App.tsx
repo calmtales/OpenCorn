@@ -8,7 +8,8 @@ import { SplashScreen } from "./components/SplashScreen";
 import { SeedInput } from "./components/SeedInput";
 import { Canvas, ReactFlowProvider } from "./components/Canvas";
 import { AgentTicker } from "./components/AgentTicker";
-import { useStory } from "./lib/store";
+import { useStory, modeLabels, modeRenderType } from "./lib/store";
+import type { IndustryMode } from "./lib/types";
 import { useFilmPipeline } from "./hooks/useFilmPipeline";
 import { useToast } from "./hooks/useToast";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -24,6 +25,7 @@ const SettingsPanel = lazy(() => import("./components/SettingsPanel").then(m => 
 import { ExportPanel } from "./components/ExportPanel";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { PromptCraft } from "./components/PromptCraft";
+import { ModeSelector } from "./components/ModeSelector";
 
 type SidePanel = "settings" | "history" | "promptcraft" | "presets" | null;
 
@@ -254,6 +256,7 @@ export default function App() {
   // Zustand branching canvas state
   const mode = useStory((s) => s.mode);
   const storyNodes = useStory((s) => s.nodes);
+  const industryMode = useStory((s) => s.industryMode);
 
   // Existing film pipeline (kept for MCP + render flow)
   const pipeline = useFilmPipeline();
@@ -264,6 +267,15 @@ export default function App() {
     document.documentElement.setAttribute("data-high-contrast", highContrast ? "true" : "false");
     try { localStorage.setItem("opencorn-high-contrast", String(highContrast)); } catch {}
   }, [highContrast]);
+
+  // Industry mode change — update render defaults
+  useEffect(() => {
+    const render = modeRenderType(industryMode);
+    // Update CSS custom properties so downstream panels pick up the mode
+    document.documentElement.style.setProperty("--mode-aspect-ratio", render.aspectRatio);
+    document.documentElement.style.setProperty("--mode-format", `"${render.format}"`);
+    document.documentElement.setAttribute("data-industry-mode", industryMode);
+  }, [industryMode]);
 
   const togglePanel = useCallback(
     (panel: SidePanel) => {
@@ -383,6 +395,7 @@ export default function App() {
           </nav>
 
           <div style={styles.headerRight}>
+            <ModeSelector />
             <button
               style={styles.highContrastBtn(highContrast)}
               onClick={() => setHighContrast((v) => !v)}
@@ -444,7 +457,7 @@ export default function App() {
               }}
               aria-hidden="true"
             />
-            <span>Canvas · {storyNodes.size} beats</span>
+            <span>Canvas · {storyNodes.size} {modeLabels(industryMode).beat.toLowerCase()}s</span>
           </div>
           <div style={styles.shortcutsHint}>
             <span>
@@ -454,7 +467,7 @@ export default function App() {
               <span style={styles.kbd} aria-hidden="true">⌘/</span> Shortcuts
             </span>
             <span style={{ color: "var(--text-muted)", fontSize: 9, fontFamily: "var(--font-mono)" }}>
-              v{VERSION} · phase 3
+              v{VERSION} · {industryMode}
             </span>
           </div>
         </div>

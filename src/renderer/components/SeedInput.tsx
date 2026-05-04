@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useStory, DEMO_SEED } from "../lib/store";
 import type { IndustryMode } from "../lib/types";
 
-const EXAMPLES = [
+const FILM_EXAMPLES = [
   {
     label: "Endgame — the gauntlet moment",
     text: DEMO_SEED,
@@ -28,6 +28,46 @@ const EXAMPLES = [
       "A hacker wakes at the foot of the Galata Tower; a cybernetic implant sits beneath the skin of his arm, and he has no memory of the last three years. The time is 03:17.",
   },
 ];
+
+const DESIGN_EXAMPLES = [
+  {
+    label: "Minimalist living room",
+    text: "A minimalist living room with floor-to-ceiling windows overlooking a city skyline at dusk. The client wants warmth without clutter — every object must justify its presence.",
+  },
+  {
+    label: "Co-working space for night owls",
+    text: "A co-working space designed for night owls: low ambient light, acoustically isolated pods, and a central espresso bar that doubles as a social anchor.",
+  },
+];
+
+const ARCH_EXAMPLES = [
+  {
+    label: "Community library on a hillside",
+    text: "A community library on a hillside, half-buried into the slope, with skylights that track the sun and a reading terrace overlooking a valley. Budget is tight; material honesty is non-negotiable.",
+  },
+  {
+    label: "Floating pavilion on the Bosphorus",
+    text: "A floating pavilion on the Bosphorus — part ferry terminal, part public garden. The structure must resist currents and still feel weightless from the shore.",
+  },
+];
+
+const ADS_EXAMPLES = [
+  {
+    label: "Launch campaign for a plant-based burger",
+    text: "Launch campaign for a plant-based burger that doesn't apologize for being plant-based. Target: flexitarians aged 25-40 who grill on weekends. Tone: confident, not preachy.",
+  },
+  {
+    label: "Rebrand for a 100-year-old watchmaker",
+    text: "Rebrand for a 100-year-old Swiss watchmaker entering the smartwatch market. The tension: heritage vs. innovation. Every asset must feel like both at once.",
+  },
+];
+
+const MODE_EXAMPLES: Record<IndustryMode, typeof FILM_EXAMPLES> = {
+  filmmaking: FILM_EXAMPLES,
+  design: DESIGN_EXAMPLES,
+  architecture: ARCH_EXAMPLES,
+  advertising: ADS_EXAMPLES,
+};
 
 const INDUSTRY_OPTIONS: { value: IndustryMode; label: string; icon: string }[] = [
   { value: "filmmaking", label: "Film", icon: "🎬" },
@@ -226,10 +266,19 @@ const styles = {
   },
 };
 
+const MODE_PLACEHOLDERS: Record<IndustryMode, string> = {
+  filmmaking: "A scene, a decision, a character at a crossroads…",
+  design: "A space, a material, a client's impossible brief…",
+  architecture: "A site, a constraint, a building that doesn't exist yet…",
+  advertising: "A brand, a tension, a campaign that has to land…",
+};
+
 export function SeedInput() {
   const [text, setText] = useState(DEMO_SEED);
   const [industry, setIndustry] = useState<IndustryMode>("filmmaking");
   const enterCanvas = useStory((s) => s.enterCanvas);
+
+  const examples = MODE_EXAMPLES[industry];
 
   return (
     <div style={styles.container}>
@@ -268,14 +317,14 @@ export function SeedInput() {
               value={text}
               onChange={(e) => setText(e.target.value.slice(0, 600))}
               rows={4}
-              placeholder="A scene, a decision, a character at a crossroads…"
+              placeholder={MODE_PLACEHOLDERS[industry]}
               style={styles.textarea}
             />
           </div>
 
           {/* Example buttons */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 20 }}>
-            {EXAMPLES.map((ex) => (
+            {examples.map((ex) => (
               <button
                 key={ex.label}
                 type="button"
@@ -357,7 +406,7 @@ export function SeedInput() {
               disabled={!text.trim()}
               onClick={() => {
                 const seed = text.trim() || DEMO_SEED;
-                enterCanvas(seed);
+                enterCanvas(seed, industry);
               }}
               style={styles.enterBtn(!text.trim())}
               onMouseEnter={(e) => {

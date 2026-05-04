@@ -63,6 +63,64 @@ function buildRootTree(seed: string): Map<string, StoryNode> {
 export const DEMO_SEED =
   "Tony Stark stands on the Avengers compound battlefield, the Infinity Gauntlet in his hand — every possible ending hinges on what he chooses to do next.";
 
+// ---- mode-aware helpers (Phase 4) -------------------------------------------
+
+interface ModeLabels {
+  beat: string;       // e.g. "Scene", "Concept", "Space", "Moment"
+  canon: string;      // e.g. "Final cut", "Final layout", "Floor plan", "A-roll"
+  branch: string;     // e.g. "Alt. ending", "Variant", "Wing layout", "Creative route"
+  story: string;      // e.g. "Story", "Collection", "Building", "Campaign"
+  addVerb: string;    // e.g. "Add scene", "Add concept"
+  forkVerb: string;   // e.g. "Fork scene", "Fork concept"
+}
+
+export function modeLabels(mode: IndustryMode): ModeLabels {
+  switch (mode) {
+    case "design":
+      return { beat: "Concept", canon: "Final layout", branch: "Variant", story: "Collection", addVerb: "Add concept", forkVerb: "Fork concept" };
+    case "architecture":
+      return { beat: "Space", canon: "Floor plan", branch: "Wing layout", story: "Building", addVerb: "Add space", forkVerb: "Fork space" };
+    case "advertising":
+      return { beat: "Moment", canon: "A-roll", branch: "Creative route", story: "Campaign", addVerb: "Add moment", forkVerb: "Fork moment" };
+    case "filmmaking":
+    default:
+      return { beat: "Scene", canon: "Final cut", branch: "Alt. ending", story: "Story", addVerb: "Add scene", forkVerb: "Fork scene" };
+  }
+}
+
+export function modeStylePrefix(mode: IndustryMode): string {
+  switch (mode) {
+    case "design":
+      return "photoreal interior render, soft natural light";
+    case "architecture":
+      return "architectural visualization, clean lines, daylight";
+    case "advertising":
+      return "product hero shot, studio lighting, high contrast";
+    case "filmmaking":
+    default:
+      return "cinematic still, 35mm film grain, dramatic lighting";
+  }
+}
+
+export interface ModeRenderType {
+  format: string;      // e.g. "video storyboard", "layout mockup"
+  aspectRatio: string; // e.g. "16:9", "4:3"
+}
+
+export function modeRenderType(mode: IndustryMode): ModeRenderType {
+  switch (mode) {
+    case "design":
+      return { format: "layout mockup", aspectRatio: "4:3" };
+    case "architecture":
+      return { format: "floor plan viz", aspectRatio: "3:2" };
+    case "advertising":
+      return { format: "campaign deck", aspectRatio: "9:16" };
+    case "filmmaking":
+    default:
+      return { format: "video storyboard", aspectRatio: "16:9" };
+  }
+}
+
 function relayoutAndRecompute(
   nodes: Map<string, StoryNode>,
   rootId: string,
@@ -129,7 +187,7 @@ interface StoreState {
   pendingAutoExpand: boolean;
 
   // actions
-  enterCanvas: (seed: string) => void;
+  enterCanvas: (seed: string, industryMode?: IndustryMode) => void;
   resetToLanding: () => void;
   setCurrent: (nodeId: string, decidedBy?: Decider, agentName?: string) => void;
   setSelected: (nodeId: string | null) => void;
@@ -181,6 +239,8 @@ interface StoreState {
   removeRenderJob: (id: string) => void;
 
   consumePendingAutoExpand: () => boolean;
+
+  setIndustryMode: (mode: IndustryMode) => void;
 }
 
 // ---- create store -----------------------------------------------------------
@@ -210,16 +270,18 @@ export const useStory = create<StoreState>()((set, get) => {
     autoAsk: true,
     pendingAutoExpand: false,
 
+    setIndustryMode: (mode) => set({ industryMode: mode }),
+
     consumePendingAutoExpand: () => {
       const was = get().pendingAutoExpand;
       if (was) set({ pendingAutoExpand: false });
       return was;
     },
 
-    enterCanvas: (seed) =>
+    enterCanvas: (seed, industryMode) =>
       set((s) => {
         if (!seed.trim() || seed.trim() === s.seed) {
-          return { mode: "canvas", seed };
+          return { mode: "canvas", seed, ...(industryMode ? { industryMode } : {}) };
         }
         const fresh = freshTree(seed);
         return {
@@ -232,6 +294,7 @@ export const useStory = create<StoreState>()((set, get) => {
           characters: {},
           characterRefs: {},
           pendingAutoExpand: true,
+          ...(industryMode ? { industryMode } : {}),
         };
       }),
 

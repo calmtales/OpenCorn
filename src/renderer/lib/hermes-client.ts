@@ -8,8 +8,8 @@
  *  when the backend is wired up.
  *  ────────────────────────────────────────────────────────────────────── */
 
-import { useStory } from "./store";
-import type { AgentEvent, AgentId, BranchSuggestion, NodeMood, NodeTone } from "./types";
+import { useStory, modeStylePrefix, modeLabels, modeRenderType } from "./store";
+import type { AgentEvent, AgentId, BranchSuggestion, IndustryMode, NodeMood, NodeTone } from "./types";
 
 // ---- helpers ----------------------------------------------------------------
 
@@ -91,9 +91,10 @@ export async function expandNode(
   }
 
   const canonTitles = canonTitlesUpTo(nodeId);
+  const labels = modeLabels(store.industryMode);
   const ev = agentEvent(
     "brainstorm",
-    `BRAINSTORM · branching "${node.title}"`,
+    `BRAINSTORM · ${labels.forkVerb} "${node.title}"`,
   );
   store.appendAgent({ ...ev, status: "streaming" });
   const isShell = !node.title;
@@ -111,6 +112,7 @@ export async function expandNode(
         focusBody: node.body ?? node.summary,
         focusMood: node.mood,
         branches: branchCount,
+        industryMode: store.industryMode,
       }),
     });
 
@@ -138,6 +140,7 @@ export async function expandNode(
 
     store.patchNodeProse(nodeId, { rawBrainstorm: raw });
 
+    const styleSuffix = modeStylePrefix(store.industryMode);
     const prepared = options.map((o) => {
       const rawTitle = o.label.slice(0, 400) || (o.summary.split(/[.!?]/)[0] ?? "").trim();
       const title =
@@ -151,7 +154,7 @@ export async function expandNode(
         summary,
         body: summary,
         imagePrompt: prompt,
-        imageUrl: `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ", cinematic still, 35mm")}?width=480&height=300&seed=${Date.now()}&model=flux&nologo=true`,
+        imageUrl: `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt + ", " + styleSuffix)}?width=480&height=300&seed=${Date.now()}&model=flux&nologo=true`,
         mood: "neutral" as const,
         tone: "divergent" as const,
       };
@@ -186,7 +189,8 @@ export async function writerAssist(args: {
   const child = store.nodes.get(args.childId);
   if (!parent || !child) { inflightAssist.delete(key); return null; }
 
-  const ev = agentEvent("writer-assist", `WRITER-ASSIST · "${args.intent.slice(0, 40)}…"`);
+  const assistLabels = modeLabels(store.industryMode);
+  const ev = agentEvent("writer-assist", `WRITER-ASSIST · ${assistLabels.beat} "${args.intent.slice(0, 40)}…"`);
   store.appendAgent(ev);
 
   try {
@@ -201,6 +205,7 @@ export async function writerAssist(args: {
         childTitle: child.title,
         intent: args.intent,
         mode: args.mode,
+        industryMode: store.industryMode,
       }),
     });
     if (!res.ok) {
@@ -284,14 +289,16 @@ export async function generateNodeImage(
   store.appendAgent({ ...ev, status: "streaming" });
 
   try {
+    const render = modeRenderType(store.industryMode);
+    const imgStyleSuffix = modeStylePrefix(store.industryMode);
     const res = await fetch("/api/hermes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         kind: "image-gen",
-        prompt: prompt.slice(0, 400),
-        style: "cinematic",
-        aspect: "16:9",
+        prompt: prompt.slice(0, 400) + ", " + imgStyleSuffix,
+        style: store.industryMode,
+        aspect: render.aspectRatio,
       }),
     });
     if (!res.ok) {
