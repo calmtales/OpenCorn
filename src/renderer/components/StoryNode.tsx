@@ -242,12 +242,10 @@ function staleBorder(node: TStoryNode): string | null {
 
 // ---- CompactBar -------------------------------------------------------------
 
-function CompactBar({ node }: { node: TStoryNode }) {
+function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
   const setCurrent = useStory((s) => s.setCurrent);
-  const setSelected = useStory((s) => s.setSelected);
-  const selectedId = useStory((s) => s.selectedId);
   const removeInserted = useStory((s) => s.removeInserted);
-  const isHover = selectedId === node.id;
+  const isHover = hovered;
   const MoodIcon = MOOD_ICON[node.mood];
   const staleTint = staleBorder(node);
   const isShell = node.status === "generating" && !!node.inserted && !node.title;
@@ -297,8 +295,6 @@ function CompactBar({ node }: { node: TStoryNode }) {
         transform: isHover ? "scale(1.01)" : "scale(1)",
       }}
       onClick={(e) => { e.stopPropagation(); setCurrent(node.id); }}
-      onMouseEnter={() => setSelected(node.id)}
-      onMouseLeave={() => setSelected(null)}
     >
       {/* × removal button */}
       {node.inserted && (
@@ -462,15 +458,13 @@ function CompactBar({ node }: { node: TStoryNode }) {
 
 // ---- CheckpointCard ---------------------------------------------------------
 
-function CheckpointCard({ node }: { node: TStoryNode }) {
+function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
   const setCurrent = useStory((s) => s.setCurrent);
-  const setSelected = useStory((s) => s.setSelected);
-  const selectedId = useStory((s) => s.selectedId);
   const removeInserted = useStory((s) => s.removeInserted);
   const [loaded, setLoaded] = useState(false);
   const isCurrent = node.status === "current";
   const isShell = node.status === "generating" && !!node.inserted && !node.title;
-  const isHover = selectedId === node.id;
+  const isHover = hovered;
   const staleTint = staleBorder(node);
 
   const ribbonBg = isShell
@@ -486,8 +480,6 @@ function CheckpointCard({ node }: { node: TStoryNode }) {
         ...sCheckpoint.container,
         opacity: isShell ? 0.82 : 1,
       }}
-      onMouseEnter={() => setSelected(node.id)}
-      onMouseLeave={() => setSelected(null)}
       onClick={(e) => { e.stopPropagation(); setCurrent(node.id); }}
     >
       {/* × removal button */}
@@ -680,7 +672,7 @@ function CheckpointCard({ node }: { node: TStoryNode }) {
 
 // ---- StoryNodeCard (main export) -------------------------------------------
 
-function PreviewOverlay({ node, yShift }: { node: TStoryNode; yShift: number }) {
+function PreviewOverlay({ node, yShift, hovered }: { node: TStoryNode; yShift: number; hovered: boolean }) {
   const setCurrent = useStory((s) => s.setCurrent);
   return (
     <div
@@ -692,19 +684,17 @@ function PreviewOverlay({ node, yShift }: { node: TStoryNode; yShift: number }) 
       }}
       onClick={(e) => { e.stopPropagation(); setCurrent(node.id); }}
     >
-      <CheckpointCard node={node} />
+      <CheckpointCard node={node} hovered={hovered} />
     </div>
   );
 }
 
 export function StoryNodeCard({ data }: Props) {
   const { node } = data;
-  const selectedId = useStory((s) => s.selectedId);
-  const setSelected = useStory((s) => s.setSelected);
-  const isHovered = selectedId === node.id;
+  const [isHovered, setIsHovered] = useState(false);
   const variant = variantOf(node);
 
-  if (variant === "checkpoint") return <CheckpointCard node={node} />;
+  if (variant === "checkpoint") return <CheckpointCard node={node} hovered={isHovered} />;
 
   const showPreview = isHovered;
   const yShift = (CHECKPOINT_HEIGHT - COMPACT_HEIGHT) / 2;
@@ -712,14 +702,14 @@ export function StoryNodeCard({ data }: Props) {
   return (
     <div
       style={{ position: "relative" }}
-      onMouseEnter={() => setSelected(node.id)}
-      onMouseLeave={() => setSelected(null)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       <div style={{ visibility: showPreview ? "hidden" : "visible" }}>
-        <CompactBar node={node} />
+        <CompactBar node={node} hovered={isHovered} />
       </div>
       {showPreview && (
-        <PreviewOverlay node={node} yShift={yShift} />
+        <PreviewOverlay node={node} yShift={yShift} hovered={isHovered} />
       )}
     </div>
   );

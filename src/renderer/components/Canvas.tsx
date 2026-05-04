@@ -93,17 +93,17 @@ const styles = {
 function InnerCanvas() {
   const nodes = useStory((s) => s.nodes);
   const currentId = useStory((s) => s.currentId);
-  const rootId = useStory((s) => s.rootId);
   const canonPathArr = useStory(selectCanonPath);
   const setSelected = useStory((s) => s.setSelected);
   const setCurrent = useStory((s) => s.setCurrent);
-  const flow = useReactFlow();
+  const { setCenter, fitView } = useReactFlow();
   const hasFitRef = useRef(false);
+  const lastCenteredIdRef = useRef<string | null>(null);
 
   const canonSet = new Set(canonPathArr);
   const { rfNodes, rfEdges } = toReactFlow(nodes, canonSet);
 
-  // Initial fitView — center on current beat
+  // Initial fitView — center on current beat exactly once.
   useEffect(() => {
     if (hasFitRef.current) return;
     if (rfNodes.length === 0) return;
@@ -113,25 +113,27 @@ function InnerCanvas() {
       if (cur) {
         const isCheckpoint = variantOf(cur) === "checkpoint";
         const anchorX = cur.x + (isCheckpoint ? 156 : 136);
-        flow.setCenter(anchorX, cur.y, { zoom: 0.9, duration: 600 });
+        setCenter(anchorX, cur.y, { zoom: 0.9, duration: 600 });
+        lastCenteredIdRef.current = cur.id;
       } else {
-        flow.fitView({ padding: 0.14, duration: 600, maxZoom: 0.95, minZoom: 0.25 });
+        fitView({ padding: 0.14, duration: 600, maxZoom: 0.95, minZoom: 0.25 });
       }
       hasFitRef.current = true;
     }, 120);
     return () => clearTimeout(t);
-  }, [rfNodes.length, flow]);
+  }, [rfNodes.length, fitView, setCenter]);
 
-  // Pan to current on navigation
-  const currentChildCount = nodes.get(currentId)?.childrenIds.length ?? 0;
+  // Pan to current on navigation, but only when the canonical node changes.
   useEffect(() => {
     if (!hasFitRef.current) return;
-    const cur = nodes.get(currentId);
+    if (lastCenteredIdRef.current === currentId) return;
+    const cur = useStory.getState().nodes.get(currentId);
     if (!cur) return;
     const isCheckpoint = variantOf(cur) === "checkpoint";
     const anchorX = cur.x + (isCheckpoint ? 156 : 136);
-    flow.setCenter(anchorX, cur.y, { zoom: 0.8, duration: 650 });
-  }, [currentId, currentChildCount, rootId, flow]);
+    lastCenteredIdRef.current = currentId;
+    setCenter(anchorX, cur.y, { zoom: 0.8, duration: 650 });
+  }, [currentId, setCenter]);
 
   const onPaneClick = useCallback(() => setSelected(null), [setSelected]);
   const onNodeClick = useCallback(
@@ -178,7 +180,7 @@ function InnerCanvas() {
                 if (!cur) return;
                 const isCheckpoint = variantOf(cur) === "checkpoint";
                 const anchorX = cur.x + (isCheckpoint ? 156 : 136);
-                flow.setCenter(anchorX, cur.y, { zoom: 1.0, duration: 600 });
+                setCenter(anchorX, cur.y, { zoom: 1.0, duration: 600 });
               }}
               style={styles.crosshairBtn}
               title="Center on current beat"
