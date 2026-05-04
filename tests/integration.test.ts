@@ -201,6 +201,17 @@ class MockPipelineController {
     this.settings = settings;
   }
 
+  /**
+   * Unwrap MCP tools/call response envelope: { content: [{ type: "text", text: "..." }] }
+   * Mirrors the real McpClient.callTool() logic.
+   */
+  private unwrapToolResult(result: any): any {
+    if (result?.content?.[0]?.text) {
+      return JSON.parse(result.content[0].text);
+    }
+    return result;
+  }
+
   async submitIdea(
     idea: string,
     style: FilmStyle
@@ -226,7 +237,7 @@ class MockPipelineController {
 
     if (resp.error) throw new Error(resp.error.message);
 
-    const result = resp.result as any;
+    const result = this.unwrapToolResult(resp.result);
     const workflowId = result.workflow_id;
     const storyboard = this.buildStoryboard(result, workflowId, idea, style);
     this.workflows.set(workflowId, { storyboard });
@@ -253,7 +264,7 @@ class MockPipelineController {
 
     if (resp.error) throw new Error(resp.error.message);
 
-    return this.parseStatus(resp.result as any);
+    return this.parseStatus(this.unwrapToolResult(resp.result));
   }
 
   async runFullPipeline(
@@ -277,7 +288,7 @@ class MockPipelineController {
 
     if (resp.error) throw new Error(resp.error.message);
 
-    const result = resp.result as any;
+    const result = this.unwrapToolResult(resp.result);
     const videoUrl = result.merged_video_url ?? result.scene_videos?.[0]?.video_url;
     const entry = this.workflows.get(workflowId);
     if (entry) entry.videoUrl = videoUrl;
@@ -306,7 +317,7 @@ class MockPipelineController {
     style: FilmStyle
   ): Storyboard {
     const screenplay = result.screenplay;
-    const scenes = screenplay.scenes.map((s: any, i: number) => ({
+    const scenes = (screenplay.scenes ?? []).map((s: any, i: number) => ({
       id: `${workflowId}-scene-${i + 1}`,
       title: s.title,
       description: s.visual_description,
@@ -331,7 +342,7 @@ class MockPipelineController {
       idea,
       style,
       scenes,
-      totalDuration: screenplay.total_duration,
+      totalDuration: screenplay.total_duration ?? scenes.reduce((sum: number, s: any) => sum + (s.duration ?? 0), 0),
       createdAt: new Date().toISOString(),
     };
   }
@@ -584,7 +595,7 @@ describe("Settings Persistence", () => {
 
     // Should fall back to defaults
     const settings = { ...DEFAULT_SETTINGS };
-    expect(settings.videoProvider).toBe("sora2");
+    expect(settings.videoProvider).toBe("ltx");
     expect(settings.sceneCount).toBe(5);
     expect(settings.style).toBe("anime");
   });
@@ -896,7 +907,7 @@ describe("Error Handling", () => {
   });
 
   test("MCP timeout returns error", async () => {
-    mcp.setTimeout(5000);
+    mcp.setTimeout(200);
 
     await expect(
       pipeline.submitIdea("test", "anime")

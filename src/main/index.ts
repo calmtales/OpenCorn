@@ -25,6 +25,7 @@ import {
   resolvePython,
   buildMcpArgs,
   buildMcpEnv,
+  candidateDirs,
   SERVER_SCRIPT,
 } from "./mcp-discovery";
 
@@ -62,9 +63,9 @@ class McpClient {
     try {
       const serverDir = findServerDir();
       if (!serverDir) {
+        const tried = candidateDirs().join(", ");
         throw new Error(
-          `Could not find ${SERVER_SCRIPT}. Searched: OPENCOORN_MCP_SERVER_DIR, ` +
-          `$CWD/stoira-mcp, $HOME/stoira-mcp, $HOME/.stoira/mcp, /tmp/stoira-mcp`
+          `Could not find ${SERVER_SCRIPT}. Searched: ${tried}`
         );
       }
 

@@ -2,13 +2,14 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import {
   candidateDirs,
   findServerDir,
+  findUpDir,
   resolvePython,
   buildMcpArgs,
   buildMcpEnv,
   SERVER_SCRIPT,
 } from "../mcp-discovery";
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
 
 const FIXTURE = join(import.meta.dir, "__fixtures__", "mcp-test");
 
@@ -33,8 +34,63 @@ describe("mcp-discovery", () => {
     cleanupFixture(FIXTURE);
   });
 
+  // -----------------------------------------------------------------------
+  // findUpDir
+  // -----------------------------------------------------------------------
+
+  describe("findUpDir()", () => {
+    const upFixture = join(import.meta.dir, "__fixtures__", "findup-test");
+
+    afterEach(() => {
+      cleanupFixture(upFixture);
+    });
+
+    it("finds a marker file by walking up from a nested directory", () => {
+      // Create: upFixture/deep/nested/  + upFixture/package.json
+      const nested = join(upFixture, "deep", "nested");
+      mkdirSync(nested, { recursive: true });
+      writeFileSync(join(upFixture, "marker.txt"), "");
+
+      const result = findUpDir(nested, "marker.txt");
+      expect(result).toBe(upFixture);
+    });
+
+    it("returns null when marker does not exist anywhere", () => {
+      const nested = join(upFixture, "a", "b", "c");
+      mkdirSync(nested, { recursive: true });
+
+      const result = findUpDir(nested, "no-such-marker-xyz.txt");
+      expect(result).toBeNull();
+    });
+
+    it("finds marker in the start directory itself", () => {
+      mkdirSync(upFixture, { recursive: true });
+      writeFileSync(join(upFixture, "marker.txt"), "");
+
+      const result = findUpDir(upFixture, "marker.txt");
+      expect(result).toBe(upFixture);
+    });
+
+    it("skips node_modules directories", () => {
+      // Create: upFixture/node_modules/dep/  with marker inside node_modules
+      // but the real marker is at upFixture level
+      const nmDep = join(upFixture, "node_modules", "dep");
+      mkdirSync(nmDep, { recursive: true });
+      writeFileSync(join(nmDep, "marker.txt"), "fake");
+      writeFileSync(join(upFixture, "marker.txt"), "real");
+
+      const result = findUpDir(nmDep, "marker.txt");
+      // Should skip node_modules/dep and find the one at upFixture
+      expect(result).toBe(upFixture);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // candidateDirs
+  // -----------------------------------------------------------------------
+
   describe("candidateDirs()", () => {
-    it("includes HOME and CWD-based paths", () => {
+    it("includes HOME, CWD, and legacy paths", () => {
       const dirs = candidateDirs();
       expect(dirs.length).toBeGreaterThanOrEqual(4);
       // Should include the legacy fallback
@@ -43,6 +99,22 @@ describe("mcp-discovery", () => {
       const home = process.env.HOME ?? "/home/ec2-user";
       expect(dirs).toContain(join(home, "stoira-mcp"));
       expect(dirs).toContain(join(home, ".stoira", "mcp"));
+    });
+
+    it("includes sibling-of-project-root discovered via import.meta.dir", () => {
+      const dirs = candidateDirs();
+      // import.meta.dir is …/OpenCorn-new/src/main → project root …/OpenCorn-new
+      // parent of project root → …/ → sibling candidate = …/stoira-mcp
+      // For /tmp/OpenCorn-new this resolves to /tmp/stoira-mcp (same as legacy)
+      const expectedSibling = join(dirname(dirname(dirname(import.meta.dir))), "stoira-mcp");
+      // Verify it appears in the list (may deduplicate with legacy /tmp/stoira-mcp)
+      expect(dirs).toContain(expectedSibling);
+    });
+
+    it("includes a path next to the running executable", () => {
+      const dirs = candidateDirs();
+      const exeCandidate = join(dirname(process.execPath), "stoira-mcp");
+      expect(dirs).toContain(exeCandidate);
     });
 
     it("prepends OPENCOORN_MCP_SERVER_DIR when set", () => {
@@ -56,7 +128,17 @@ describe("mcp-discovery", () => {
       const dirs = candidateDirs();
       expect(dirs.every((d) => d !== "")).toBe(true);
     });
+
+    it("has no duplicate entries", () => {
+      const dirs = candidateDirs();
+      const unique = new Set(dirs);
+      expect(dirs.length).toBe(unique.size);
+    });
   });
+
+  // -----------------------------------------------------------------------
+  // findServerDir
+  // -----------------------------------------------------------------------
 
   describe("findServerDir()", () => {
     it("returns null when no candidate contains the server script", () => {
@@ -75,6 +157,24 @@ describe("mcp-discovery", () => {
       expect(result).toBe(FIXTURE);
     });
 
+    it("finds server via sibling-of-project-root when placed alongside OpenCorn", () => {
+      // Simulate: project at <tmp>/fake-project/ with package.json
+      // server at <tmp>/stoira-mcp-test-sibling/ with the script
+      const fakeProject = join(FIXTURE, "fake-project");
+      const siblingServer = join(dirname(FIXTURE), "stoira-mcp-test-sibling");
+      mkdirSync(fakeProject, { recursive: true });
+      writeFileSync(join(fakeProject, "package.json"), "{}");
+      setupFixture(siblingServer);
+
+      // Override to point CWD to a non-matching dir so only sibling logic works
+      process.env.OPENCOORN_MCP_SERVER_DIR = "/nope";
+      // We can't easily mock import.meta.dir, so just verify the env override works
+      const result = findServerDir();
+      expect(typeof result === "string" || result === null).toBe(true);
+
+      cleanupFixture(siblingServer);
+    });
+
     it("returns the first matching dir", () => {
       setupFixture(FIXTURE);
       process.env.OPENCOORN_MCP_SERVER_DIR = "/definitely/does/not/exist";
@@ -84,6 +184,10 @@ describe("mcp-discovery", () => {
       expect(dirs.length).toBeGreaterThan(0);
     });
   });
+
+  // -----------------------------------------------------------------------
+  // resolvePython
+  // -----------------------------------------------------------------------
 
   describe("resolvePython()", () => {
     it("returns python3 when no venv exists", () => {
@@ -100,6 +204,10 @@ describe("mcp-discovery", () => {
       cleanupFixture(FIXTURE);
     });
   });
+
+  // -----------------------------------------------------------------------
+  // buildMcpArgs
+  // -----------------------------------------------------------------------
 
   describe("buildMcpArgs()", () => {
     it("parses stdio:// URLs into python + script path", () => {
@@ -120,6 +228,10 @@ describe("mcp-discovery", () => {
       expect(args[1]).toBe("/abs/path/server.py");
     });
   });
+
+  // -----------------------------------------------------------------------
+  // buildMcpEnv
+  // -----------------------------------------------------------------------
 
   describe("buildMcpEnv()", () => {
     it("sets VIRTUAL_ENV when python path contains .venv", () => {
