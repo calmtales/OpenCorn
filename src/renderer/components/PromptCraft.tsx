@@ -215,7 +215,7 @@ export function PromptCraft({ storyboard, onSceneUpdate, onClose }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadSceneId, setUploadSceneId] = useState<string | null>(null);
 
-  const scenes = storyboard?.scenes.sort((a, b) => a.order - b.order) ?? [];
+  const scenes = storyboard?.scenes ? [...storyboard.scenes].sort((a, b) => a.order - b.order) : [];
 
   const handleUpdate = useCallback(
     (sceneId: string, field: string, value: any) => {

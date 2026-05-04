@@ -1,4 +1,4 @@
-import { useState, useCallback, lazy, Suspense, useEffect } from "react";
+import { useState, useCallback, lazy, Suspense, useEffect, useRef } from "react";
 import type { FilmStyle, Storyboard, AppSettings, Scene, StylePreset } from "../shared/types";
 import { McpStatus } from "./components/McpStatus";
 import { ShortcutsModal } from "./components/ShortcutsModal";
@@ -245,6 +245,21 @@ function PanelSuspense({ children }: { children: React.ReactNode }) {
   );
 }
 
+const PIPELINE_STAGE_LABELS: Record<string, string> = {
+  generating_screenplay: "Writing screenplay…",
+  generating_keyframes: "Rendering keyframes…",
+  generating_video: "Generating video…",
+  processing_audio: "Processing audio…",
+  stitching: "Stitching…",
+  complete: "Complete",
+};
+
+function pipelineStatusText(stage: string, progress: number): string | null {
+  if (stage === "idle") return null;
+  const label = PIPELINE_STAGE_LABELS[stage] ?? stage;
+  return `${label} ${progress}%`;
+}
+
 export default function App() {
   const [sidePanel, setSidePanel] = useState<SidePanel>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -261,6 +276,101 @@ export default function App() {
   // Existing film pipeline (kept for MCP + render flow)
   const pipeline = useFilmPipeline();
   const toast = useToast();
+  const lastLoadedStoryboardIdRef = useRef<string | null>(null);
+
+  const syncStoryboardToCanvas = useCallback(
+    (storyboard: Storyboard | null) => {
+      if (!storyboard) return;
+      // Skip redundant reloads when the storyboard ID hasn't changed
+      // (scene-level patches go through handleSceneUpdate → patchNodeProse)
+      if (lastLoadedStoryboardIdRef.current === storyboard.id) return;
+      const store = useStory.getState();
+      store.loadStoryboard(storyboard, store.seed, store.currentId);
+      lastLoadedStoryboardIdRef.current = storyboard.id;
+    },
+    [],
+  );
+
+  const handleLandingSubmit = useCallback(
+    async (seed: string, industry: IndustryMode) => {
+      const store = useStory.getState();
+      store.enterCanvas(seed, industry);
+      try {
+        await pipeline.submitIdea(seed, pipeline.settings.style);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to start film generation");
+      }
+    },
+    [pipeline, toast],
+  );
+
+  const handleHistoryResume = useCallback(
+    async (workflowId: string) => {
+      try {
+        const storyboard = await pipeline.resumeWorkflow(workflowId);
+        // Switch to canvas mode using the storyboard returned directly from the RPC,
+        // avoiding stale-closure issues with the `pipeline` reference.
+        if (storyboard) {
+          lastLoadedStoryboardIdRef.current = storyboard.id;
+          useStory.getState().loadStoryboard(storyboard, storyboard.idea || workflowId);
+        } else {
+          useStory.getState().enterCanvas(workflowId, industryMode);
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : `Failed to resume ${workflowId}`);
+      }
+    },
+    [pipeline, toast, industryMode],
+  );
+
+  const handleSceneUpdate = useCallback(
+    (sceneId: string, updates: Partial<Scene>) => {
+      const currentStoryboard = pipeline.storyboard;
+      if (!currentStoryboard) return;
+
+      const currentScene = currentStoryboard.scenes.find((scene) => scene.id === sceneId);
+      if (!currentScene) return;
+
+      pipeline.updateScene(sceneId, updates);
+
+      const next = useStory.getState();
+      const node = next.nodes.get(sceneId);
+      if (node) {
+        const mergedPrompt = (updates.customPrompt ?? currentScene.customPrompt ?? currentScene.description ?? node.body ?? node.summary ?? "").trim();
+        next.patchNodeProse(sceneId, {
+          body: mergedPrompt,
+          summary: (updates.customPrompt ?? currentScene.description ?? currentScene.customPrompt ?? node.summary ?? "").toString().slice(0, 400),
+          renderedImagePrompt: mergedPrompt,
+          customPrompt: updates.customPrompt ?? currentScene.customPrompt,
+          cameraAngle: updates.cameraAngle ?? currentScene.cameraAngle,
+          lightingMood: updates.lightingMood ?? currentScene.lightingMood,
+          characterRefUrl: updates.characterRefUrl ?? currentScene.characterRefUrl,
+        });
+      }
+    },
+    [pipeline],
+  );
+
+  const handlePresetApply = useCallback(
+    (preset: StylePreset) => {
+      const nextSettings = {
+        ...pipeline.settings,
+        style: preset.style,
+        aspectRatio: preset.aspectRatio,
+        sceneCount: preset.sceneCount,
+      };
+      pipeline.updateSettings(nextSettings);
+      const rpc = (window as any).__electrobun_rpc;
+      void rpc?.request?.saveSettings?.({ settings: nextSettings });
+      toast.success(`Applied ${preset.name}`);
+    },
+    [pipeline, toast],
+  );
+
+  useEffect(() => {
+    if (!pipeline.storyboard) return;
+    syncStoryboardToCanvas(pipeline.storyboard);
+  }, [pipeline.storyboard, syncStoryboardToCanvas]);
 
   // High contrast mode toggle
   useEffect(() => {
@@ -314,7 +424,7 @@ export default function App() {
     return (
       <ErrorBoundary>
         <div style={styles.app}>
-          <SeedInput />
+          <SeedInput onSubmit={handleLandingSubmit} />
           <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
           {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
         </div>
@@ -429,18 +539,18 @@ export default function App() {
           )}
           {sidePanel === "history" && (
             <div style={styles.sidePanel} role="dialog" aria-label="History panel" aria-modal="true">
-              <HistoryPanel onClose={() => setSidePanel(null)} onResume={() => {}} />
+              <HistoryPanel onClose={() => setSidePanel(null)} onResume={handleHistoryResume} />
             </div>
           )}
           {sidePanel === "promptcraft" && (
             <div style={styles.sidePanel} role="dialog" aria-label="Prompt editor panel" aria-modal="true">
-              <PromptCraft storyboard={null} onSceneUpdate={() => {}} onClose={() => setSidePanel(null)} />
+              <PromptCraft storyboard={pipeline.storyboard} onSceneUpdate={handleSceneUpdate} onClose={() => setSidePanel(null)} />
             </div>
           )}
           {sidePanel === "presets" && (
             <div style={styles.sidePanel} role="dialog" aria-label="Style presets panel" aria-modal="true">
               <PanelSuspense>
-                <PresetGallery onClose={() => setSidePanel(null)} onApply={() => {}} />
+                <PresetGallery onClose={() => setSidePanel(null)} onApply={handlePresetApply} />
               </PanelSuspense>
             </div>
           )}
@@ -452,12 +562,28 @@ export default function App() {
             <div
               style={{
                 ...styles.progressDot,
-                background: "#4fc3f7",
-                boxShadow: "0 0 6px rgba(79,195,247,0.4)",
+                background: pipeline.stage === "complete" ? "#4caf50" : pipeline.stage === "idle" ? "#4fc3f7" : "#ff9800",
+                boxShadow: pipeline.stage === "idle"
+                  ? "0 0 6px rgba(79,195,247,0.4)"
+                  : pipeline.stage === "complete"
+                    ? "0 0 6px rgba(76,175,80,0.4)"
+                    : "0 0 6px rgba(255,152,0,0.4)",
               }}
               aria-hidden="true"
             />
             <span>Canvas · {storyNodes.size} {modeLabels(industryMode).beat.toLowerCase()}s</span>
+            {pipelineStatusText(pipeline.stage, pipeline.progress) && (
+              <>
+                <span style={{ color: "var(--text-muted)" }}>·</span>
+                <span style={{
+                  color: pipeline.stage === "complete" ? "#4caf50" : "var(--accent)",
+                  fontSize: 11,
+                  fontWeight: 500,
+                }}>
+                  {pipelineStatusText(pipeline.stage, pipeline.progress)}
+                </span>
+              </>
+            )}
           </div>
           <div style={styles.shortcutsHint}>
             <span>

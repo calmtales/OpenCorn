@@ -134,7 +134,7 @@ export interface BunRPC {
     getVideo: (args: { workflowId: string }) => { videoUrl: string };
     listWorkflows: () => { workflows: WorkflowSummary[] };
     deleteWorkflow: (args: { workflowId: string }) => { success: boolean };
-    resumeWorkflow: (args: { workflowId: string }) => { workflowId: string };
+    resumeWorkflow: (args: { workflowId: string }) => { workflowId: string; storyboard?: Storyboard; videoUrl?: string };
     updateScene: (args: {
       workflowId: string;
       sceneId: string;

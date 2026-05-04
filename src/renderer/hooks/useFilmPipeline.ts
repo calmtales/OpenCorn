@@ -223,35 +223,57 @@ export function useFilmPipeline() {
   );
 
   const resumeWorkflow = useCallback(
-    async (workflowId: string) => {
+    async (workflowId: string): Promise<Storyboard | null> => {
       const rpc = getBunRpc();
+      let resolvedStoryboard: Storyboard | null = null;
+      let resolvedVideoUrl: string | null = null;
 
-      // Fetch existing storyboard
       try {
-        const sb = await rpc.request.getStoryboard({ workflowId });
+        const resumed = await rpc.request.resumeWorkflow({ workflowId });
+        resolvedStoryboard = resumed.storyboard ?? null;
+        resolvedVideoUrl = resumed.videoUrl ?? null;
+      } catch {
+        // Fall back to the older direct-fetch path below.
+      }
+
+      // Fetch existing storyboard if the backend did not provide one.
+      if (!resolvedStoryboard) {
+        try {
+          const sb = await rpc.request.getStoryboard({ workflowId });
+          resolvedStoryboard = sb;
+        } catch {
+          // no storyboard available yet
+        }
+      }
+
+      if (resolvedStoryboard) {
         setState((prev) => ({
           ...prev,
-          storyboard: sb,
+          storyboard: resolvedStoryboard,
           workflowId,
-          stage: "generating_keyframes",
-          progress: 30,
+          stage: resolvedVideoUrl ? "complete" : "generating_keyframes",
+          progress: resolvedVideoUrl ? 100 : 30,
+          videoUrl: resolvedVideoUrl,
         }));
-      } catch {
+      } else {
         setState((prev) => ({ ...prev, workflowId }));
       }
 
-      // Try to get video
-      try {
-        const { videoUrl } = await rpc.request.getVideo({ workflowId });
-        setState((prev) => ({
-          ...prev,
-          videoUrl,
-          stage: "complete",
-          progress: 100,
-        }));
-      } catch {
-        // Not ready, start polling
-        startPolling(workflowId);
+      // Try to get video if the backend did not already provide it.
+      if (!resolvedVideoUrl) {
+        try {
+          const { videoUrl } = await rpc.request.getVideo({ workflowId });
+          resolvedVideoUrl = videoUrl;
+          setState((prev) => ({
+            ...prev,
+            videoUrl,
+            stage: "complete",
+            progress: 100,
+          }));
+        } catch {
+          // Not ready, start polling.
+          startPolling(workflowId);
+        }
       }
 
       window.dispatchEvent(
@@ -259,6 +281,8 @@ export function useFilmPipeline() {
           detail: { id: "", type: "info", message: `Resumed workflow ${workflowId.slice(0, 8)}` } as Toast,
         })
       );
+
+      return resolvedStoryboard;
     },
     [startPolling]
   );

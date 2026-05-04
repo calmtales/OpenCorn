@@ -391,7 +391,7 @@ interface AppRPCSchema extends ElectrobunRPCSchema {
       getVideo: { params: { workflowId: string }; response: { videoUrl: string } };
       listWorkflows: { params: undefined; response: { workflows: WorkflowSummary[] } };
       deleteWorkflow: { params: { workflowId: string }; response: { success: boolean } };
-      resumeWorkflow: { params: { workflowId: string }; response: { workflowId: string } };
+      resumeWorkflow: { params: { workflowId: string }; response: { workflowId: string; storyboard?: Storyboard; videoUrl?: string } };
       updateScene: { params: { workflowId: string; sceneId: string; updates: Partial<Scene> }; response: { success: boolean } };
       getSettings: { params: undefined; response: AppSettings };
       saveSettings: { params: { settings: AppSettings }; response: { success: boolean } };
@@ -515,7 +515,53 @@ rpc.setRequestHandler({
   },
 
   resumeWorkflow: async ({ workflowId }: { workflowId: string }) => {
-    return { workflowId };
+    const entry = workflowStore.get(workflowId);
+    let storyboard = entry?.storyboard ?? null;
+    let videoUrl = entry?.videoUrl ?? null;
+
+    // Push stored storyboard to renderer immediately if available
+    if (storyboard) {
+      rpc.send("onStoryboardReady", { storyboard });
+    }
+
+    // Push stored video if available
+    if (videoUrl) {
+      rpc.send("onVideoReady", { videoUrl });
+    }
+
+    // If no local storyboard, try fetching from MCP server
+    if (!storyboard && mcp.isConnected()) {
+      try {
+        const workflows = await mcp.listWorkflows();
+        const wf = workflows.find((w) => w.workflowId === workflowId);
+        if (wf) {
+          // Reconstruct minimal storyboard from workflow metadata
+          storyboard = {
+            id: workflowId,
+            title: wf.title,
+            idea: wf.idea,
+            style: wf.style,
+            scenes: [],
+            totalDuration: 0,
+            createdAt: wf.createdAt,
+          };
+          workflowStore.set(workflowId, { storyboard });
+          rpc.send("onStoryboardReady", { storyboard });
+        }
+      } catch {
+        // MCP lookup failed — renderer will just have the workflowId
+      }
+
+      // Check current MCP pipeline status
+      try {
+        const status = await mcp.getWorkflowStatus(workflowId);
+        rpc.send("onPipelineUpdate", { status });
+      } catch {
+        // Status check failed
+      }
+    }
+
+    return { workflowId, storyboard: storyboard ?? undefined, videoUrl: videoUrl ?? undefined };
   },
 
   updateScene: async ({ workflowId, sceneId, updates }: { workflowId: string; sceneId: string; updates: Partial<Scene> }) => {

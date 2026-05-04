@@ -13,6 +13,7 @@ import type {
   RenderJob,
   StoryNode,
 } from "./types";
+import type { Storyboard } from "../../shared/types";
 import { canonPath, layoutTree } from "./layout";
 import { imageUrl, seedFromString } from "./image";
 
@@ -223,7 +224,16 @@ interface StoreState {
 
   patchNodeProse: (
     nodeId: string,
-    patch: { body?: string; summary?: string; rawBrainstorm?: string; renderedImagePrompt?: string },
+    patch: {
+      body?: string;
+      summary?: string;
+      rawBrainstorm?: string;
+      renderedImagePrompt?: string;
+      customPrompt?: string;
+      cameraAngle?: import("../../shared/types").CameraAngle;
+      lightingMood?: import("../../shared/types").LightingMood;
+      characterRefUrl?: string;
+    },
   ) => void;
 
   setNodeImage: (nodeId: string, url: string) => void;
@@ -241,6 +251,11 @@ interface StoreState {
   consumePendingAutoExpand: () => boolean;
 
   setIndustryMode: (mode: IndustryMode) => void;
+  loadStoryboard: (
+    storyboard: Storyboard,
+    seed?: string,
+    currentId?: string | null,
+  ) => void;
 }
 
 // ---- create store -----------------------------------------------------------
@@ -249,6 +264,94 @@ function freshTree(seed: string): { nodes: Map<string, StoryNode>; rootId: strin
   const map = buildRootTree(seed);
   layoutTree(map, "root");
   return { nodes: map, rootId: "root" };
+}
+
+function sceneText(scene: {
+  title?: string;
+  description?: string;
+  customPrompt?: string;
+  dialogue?: string;
+}) {
+  return (
+    scene.customPrompt?.trim() ||
+    scene.description?.trim() ||
+    scene.dialogue?.trim() ||
+    scene.title?.trim() ||
+    "Untitled scene"
+  );
+}
+
+function storyboardToTree(
+  storyboard: Storyboard,
+  seed: string,
+  currentId?: string | null,
+): { nodes: Map<string, StoryNode>; rootId: string; currentId: string } {
+  const nodes = new Map<string, StoryNode>();
+  const scenes = storyboard.scenes.slice().sort((a, b) => a.order - b.order);
+  const rootId = storyboard.id || "story-root";
+  const rootBody = storyboard.idea?.trim() || seed || storyboard.title || "Untitled story";
+  const root: StoryNode = {
+    id: rootId,
+    parentId: null,
+    childrenIds: [],
+    depth: 0,
+    title: storyboard.title?.trim() || "Storyboard",
+    summary: rootBody.slice(0, 180),
+    body: rootBody,
+    imagePrompt: rootBody.slice(0, 300),
+    imageUrl: imageUrl({ prompt: rootBody.slice(0, 300), seed: seedFromString(`${rootId}:${storyboard.title}`) }),
+    mood: "neutral",
+    tone: "canon",
+    status: scenes.length === 0 ? "current" : "canon",
+    decidedBy: "agent",
+    staleState: "fresh",
+    x: 0,
+    y: 0,
+  };
+  nodes.set(rootId, root);
+
+  let parentId = rootId;
+  scenes.forEach((scene, index) => {
+    const id = scene.id || `${rootId}-scene-${index + 1}`;
+    const title = scene.title?.trim() || `Scene ${index + 1}`;
+    const body = sceneText(scene);
+    const prompt = scene.customPrompt?.trim() || scene.description?.trim() || body;
+    const imageUrlValue = scene.keyframes[0]?.imageUrl || imageUrl({ prompt, seed: seedFromString(`${id}:${title}`) });
+    const node: StoryNode = {
+      id,
+      parentId,
+      childrenIds: [],
+      depth: index + 1,
+      title,
+      summary: (scene.description || body).slice(0, 220),
+      body,
+      imagePrompt: prompt.slice(0, 300),
+      imageUrl: imageUrlValue,
+      mood: "neutral",
+      tone: "canon",
+      customPrompt: scene.customPrompt,
+      cameraAngle: scene.cameraAngle,
+      lightingMood: scene.lightingMood,
+      characterRefUrl: scene.characterRefUrl,
+      status: "canon",
+      decidedBy: "agent",
+      staleState: "fresh",
+      x: 0,
+      y: 0,
+    };
+    nodes.set(id, node);
+    nodes.get(parentId)!.childrenIds.push(id);
+    parentId = id;
+  });
+
+  const preferredCurrent = currentId && nodes.has(currentId)
+    ? currentId
+    : scenes[scenes.length - 1]?.id || rootId;
+
+  const current = nodes.get(preferredCurrent);
+  if (current) current.status = "current";
+  layoutTree(nodes, rootId);
+  return { nodes, rootId, currentId: preferredCurrent };
 }
 
 export const useStory = create<StoreState>()((set, get) => {
@@ -271,6 +374,20 @@ export const useStory = create<StoreState>()((set, get) => {
     pendingAutoExpand: false,
 
     setIndustryMode: (mode) => set({ industryMode: mode }),
+
+    loadStoryboard: (storyboard, seed = get().seed, currentId) =>
+      set((s) => {
+        const tree = storyboardToTree(storyboard, seed || s.seed, currentId ?? s.currentId);
+        return {
+          mode: "canvas",
+          seed: storyboard.idea?.trim() || seed || s.seed,
+          rootId: tree.rootId,
+          nodes: tree.nodes,
+          currentId: tree.currentId,
+          selectedId: tree.currentId,
+          pendingAutoExpand: false,
+        };
+      }),
 
     consumePendingAutoExpand: () => {
       const was = get().pendingAutoExpand;
@@ -509,6 +626,10 @@ export const useStory = create<StoreState>()((set, get) => {
           ...(patch.summary !== undefined ? { summary: patch.summary } : {}),
           ...(patch.rawBrainstorm !== undefined ? { rawBrainstorm: patch.rawBrainstorm } : {}),
           ...(patch.renderedImagePrompt !== undefined ? { renderedImagePrompt: patch.renderedImagePrompt } : {}),
+          ...(patch.customPrompt !== undefined ? { customPrompt: patch.customPrompt } : {}),
+          ...(patch.cameraAngle !== undefined ? { cameraAngle: patch.cameraAngle } : {}),
+          ...(patch.lightingMood !== undefined ? { lightingMood: patch.lightingMood } : {}),
+          ...(patch.characterRefUrl !== undefined ? { characterRefUrl: patch.characterRefUrl } : {}),
         });
         return { nodes: next };
       }),

@@ -273,7 +273,11 @@ const MODE_PLACEHOLDERS: Record<IndustryMode, string> = {
   advertising: "A brand, a tension, a campaign that has to land…",
 };
 
-export function SeedInput() {
+interface Props {
+  onSubmit?: (seed: string, industry: IndustryMode) => void | Promise<void>;
+}
+
+export function SeedInput({ onSubmit }: Props = {}) {
   const [text, setText] = useState(DEMO_SEED);
   const [industry, setIndustry] = useState<IndustryMode>("filmmaking");
   const enterCanvas = useStory((s) => s.enterCanvas);
@@ -406,6 +410,10 @@ export function SeedInput() {
               disabled={!text.trim()}
               onClick={() => {
                 const seed = text.trim() || DEMO_SEED;
+                if (onSubmit) {
+                  void onSubmit(seed, industry);
+                  return;
+                }
                 enterCanvas(seed, industry);
               }}
               style={styles.enterBtn(!text.trim())}

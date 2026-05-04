@@ -49,6 +49,10 @@ export interface StoryNode {
   question?: string;
   rawBrainstorm?: string;
   renderedImagePrompt?: string;
+  customPrompt?: string;
+  cameraAngle?: import("../../shared/types").CameraAngle;
+  lightingMood?: import("../../shared/types").LightingMood;
+  characterRefUrl?: string;
   status: NodeStatus;
   decidedBy: Decider;
   decidedByAgent?: string;
