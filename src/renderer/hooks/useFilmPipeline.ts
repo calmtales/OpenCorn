@@ -55,6 +55,21 @@ export function useFilmPipeline() {
       .catch(() => {});
   }, []);
 
+  // Keep screenplay progress alive so the UI doesn't look frozen at 5%.
+  useEffect(() => {
+    if (state.stage !== "generating_screenplay") return;
+    const t = setInterval(() => {
+      setState((prev) => {
+        if (prev.stage !== "generating_screenplay") return prev;
+        return {
+          ...prev,
+          progress: Math.min(prev.progress + 1, 22),
+        };
+      });
+    }, 900);
+    return () => clearInterval(t);
+  }, [state.stage]);
+
   // Listen for push events from Bun side
   useEffect(() => {
     const onPipeline = (e: CustomEvent) => {
@@ -130,14 +145,8 @@ export function useFilmPipeline() {
     window.addEventListener("video-ready", onVideo as EventListener);
 
     return () => {
-      window.removeEventListener(
-        "pipeline-update",
-        onPipeline as EventListener
-      );
-      window.removeEventListener(
-        "storyboard-ready",
-        onStoryboard as EventListener
-      );
+      window.removeEventListener("pipeline-update", onPipeline as EventListener);
+      window.removeEventListener("storyboard-ready", onStoryboard as EventListener);
       window.removeEventListener("video-ready", onVideo as EventListener);
     };
   }, []);
@@ -198,7 +207,7 @@ export function useFilmPipeline() {
         ...INITIAL,
         settings: prev.settings,
         stage: "generating_screenplay",
-        progress: 5,
+        progress: 8,
       }));
 
       window.dispatchEvent(

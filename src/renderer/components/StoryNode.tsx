@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import type { ComponentType, CSSProperties, SVGProps } from "react";
 import { useState } from "react";
-import type { NodeMood, StoryNode as TStoryNode } from "../lib/types";
-import { useStory } from "../lib/store";
+import type { NodeMood, NodeTone, StoryNode as TStoryNode } from "../lib/types";
+import { useStory, modeLabels, modeStylePrefix } from "../lib/store";
 import { variantOf, COMPACT_RIBBON_Y, CHECKPOINT_HEIGHT, COMPACT_HEIGHT } from "../lib/layout";
 
 type Props = NodeProps & { data: { node: TStoryNode } };
@@ -204,6 +204,41 @@ const sCheckpoint = {
     letterSpacing: "0.24em",
     color: "rgba(170,185,205,0.55)",
   },
+  quickActions: {
+    position: "absolute" as const,
+    right: 10,
+    top: 10,
+    zIndex: 24,
+    display: "flex",
+    gap: 8,
+    opacity: 0,
+    transform: "translateY(-3px)",
+    transition: "opacity 0.14s ease, transform 0.14s ease",
+    pointerEvents: "none" as const,
+  },
+  quickButton: (variant: "canon" | "what-if") => ({
+    pointerEvents: "auto" as const,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    minWidth: 34,
+    height: 34,
+    padding: "0 10px",
+    border: `1px solid ${variant === "canon" ? "rgba(79,195,247,0.35)" : "rgba(233,193,107,0.35)"}`,
+    background: variant === "canon"
+      ? "rgba(79,195,247,0.12)"
+      : "rgba(233,193,107,0.12)",
+    color: variant === "canon" ? "#4fc3f7" : "#e9c16b",
+    borderRadius: variant === "canon" ? 999 : 6,
+    cursor: "pointer",
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    fontWeight: 700,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.18em",
+    boxShadow: "0 8px 18px rgba(0,0,0,0.35)",
+  }),
   cornerBracket: {
     position: "absolute" as const,
     width: 18,
@@ -238,6 +273,33 @@ function staleBorder(node: TStoryNode): string | null {
   if (node.staleState === "unresolved") return "#e74c3c";
   if (node.staleState === "rewritten") return "rgba(79,195,247,0.75)";
   return null;
+}
+
+function quickBranchFor(
+  node: TStoryNode,
+  variant: "canon" | "what-if",
+  labels: ReturnType<typeof modeLabels>,
+) {
+  const base = node.title?.trim() || node.summary?.trim() || labels.beat;
+  const prefix = variant === "canon" ? `Next ${labels.beat.toLowerCase()}` : `What if`;
+  const title = variant === "canon"
+    ? `${prefix}: ${base}`
+    : `${prefix} ${base.toLowerCase()}?`;
+  const summary = variant === "canon"
+    ? `${base} continues as the canonical ${labels.beat.toLowerCase()} path.`
+    : `An alternate ${labels.beat.toLowerCase()} that bends the story into a different direction.`;
+  const body = `${summary}\n\nGenerated locally so the team can keep moving even while the brainstorm service is catching up.`;
+  const imagePrompt = `${summary} ${modeStylePrefix(useStory.getState().industryMode)}`;
+  return {
+    title,
+    summary,
+    body,
+    imagePrompt,
+    imageUrl: `https://image.pollinations.ai/prompt/${encodeURIComponent(imagePrompt)}?width=480&height=300&seed=${Date.now()}&model=flux&nologo=true`,
+    mood: (variant === "canon" ? "neutral" : "discovery") as NodeMood,
+    tone: (variant === "canon" ? "canon" : "what-if") as NodeTone,
+    label: variant === "canon" ? "canon" : "alternate",
+  };
 }
 
 // ---- CompactBar -------------------------------------------------------------
@@ -461,6 +523,9 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
 function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
   const setCurrent = useStory((s) => s.setCurrent);
   const removeInserted = useStory((s) => s.removeInserted);
+  const addBranches = useStory((s) => s.addBranches);
+  const industryMode = useStory((s) => s.industryMode);
+  const labels = modeLabels(industryMode);
   const [loaded, setLoaded] = useState(false);
   const isCurrent = node.status === "current";
   const isShell = node.status === "generating" && !!node.inserted && !node.title;
@@ -473,6 +538,12 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
       ? "linear-gradient(90deg, #b88a2c 0%, #e9c16b 100%)"
       : "linear-gradient(90deg, #1aa1e0 0%, #4fc3f7 100%)";
   const ribbonInk = isShell ? "rgba(233,193,107,0.9)" : "#0a0d12";
+
+  const handleQuickAdd = (variant: "canon" | "what-if") => {
+    const branch = quickBranchFor(node, variant, labels);
+    const [newId] = addBranches(node.id, [branch], "human", "you");
+    if (newId) setCurrent(newId, "human");
+  };
 
   return (
     <div
@@ -647,6 +718,35 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
           </div>
         </div>
       </div>
+
+      {/* Quick add controls */}
+      {isCurrent && !isShell && (
+        <div
+          style={{
+            ...sCheckpoint.quickActions,
+            opacity: isHover ? 1 : 0.82,
+            transform: isHover ? "translateY(0)" : "translateY(-1px)",
+          }}
+          aria-label="Add node options"
+        >
+          <button
+            type="button"
+            style={sCheckpoint.quickButton("canon")}
+            onClick={(e) => { e.stopPropagation(); handleQuickAdd("canon"); }}
+            title={`Add canon ${labels.beat.toLowerCase()}`}
+          >
+            + ○
+          </button>
+          <button
+            type="button"
+            style={sCheckpoint.quickButton("what-if")}
+            onClick={(e) => { e.stopPropagation(); handleQuickAdd("what-if"); }}
+            title={`Add alternate ${labels.beat.toLowerCase()}`}
+          >
+            + □
+          </button>
+        </div>
+      )}
 
       {/* Provenance */}
       <div style={sCheckpoint.provenance}>

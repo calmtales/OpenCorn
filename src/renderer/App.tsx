@@ -9,6 +9,7 @@ import { SeedInput } from "./components/SeedInput";
 import { Canvas, ReactFlowProvider } from "./components/Canvas";
 import { AgentTicker } from "./components/AgentTicker";
 import { BeatChooser } from "./components/BeatChooser";
+import { ProjectsDashboard } from "./components/ProjectsDashboard";
 import { useStory, modeLabels, modeRenderType, selectCanonPath } from "./lib/store";
 import { useShallow } from "zustand/react/shallow";
 import type { IndustryMode } from "./lib/types";
@@ -39,7 +40,7 @@ const styles = {
     flexDirection: "column" as const,
     height: "100%",
     overflow: "hidden",
-    background: "var(--bg-primary)",
+    background: "radial-gradient(circle at top, rgba(20,26,36,0.95), var(--bg-primary) 45%, #040507 100%)",
   },
   header: {
     display: "flex",
@@ -126,7 +127,7 @@ const styles = {
     display: "flex",
     flexDirection: "column" as const,
     overflow: "hidden",
-    background: "var(--bg-primary)",
+    background: "linear-gradient(180deg, rgba(6,8,12,0.15), rgba(6,8,12,0.45)), radial-gradient(circle at top, rgba(79,195,247,0.08), transparent 38%)",
     position: "relative" as const,
   },
   viewport: {
@@ -222,6 +223,41 @@ const styles = {
     height: "100%",
     color: "var(--text-muted)",
     fontSize: 12,
+  },
+  landingShell: {
+    flex: 1,
+    display: "grid",
+    gridTemplateColumns: "minmax(340px, 0.9fr) minmax(0, 1.1fr)",
+    gap: 18,
+    padding: 20,
+    overflow: "hidden",
+  },
+  landingCard: {
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 18,
+    minHeight: 0,
+  },
+  landingHero: {
+    padding: 18,
+    borderRadius: 18,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background: "linear-gradient(180deg, rgba(12,15,21,0.92), rgba(8,10,14,0.86))",
+    boxShadow: "0 18px 42px rgba(0,0,0,0.28)",
+  },
+  landingCopy: {
+    fontSize: 13,
+    lineHeight: 1.6,
+    color: "var(--text-secondary)",
+    marginTop: 10,
+  },
+  landingHint: {
+    marginTop: 12,
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.22em",
+    color: "rgba(170,185,205,0.55)",
   },
   highContrastBtn: (active: boolean) => ({
     display: "flex",
@@ -495,7 +531,52 @@ export default function App() {
     return (
       <ErrorBoundary>
         <div style={styles.app}>
-          <SeedInput onSubmit={handleLandingSubmit} />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "12px 20px",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              background: "rgba(6,8,12,0.84)",
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            <div style={styles.logo}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="2" y="2" width="20" height="20" rx="4" fill="var(--accent)" />
+                <path d="M8 8L16 12L8 16V8Z" fill="var(--bg-primary)" />
+              </svg>
+              <span style={styles.logoText}>
+                <span style={styles.logoAccent}>Open</span>Corn
+              </span>
+            </div>
+            <span style={styles.landingHint}>projects • start • resume</span>
+          </div>
+
+          <div style={styles.landingShell}>
+            <div style={styles.landingCard}>
+              <div style={styles.landingHero}>
+                <div style={styles.logoText}>Projects</div>
+                <div style={styles.landingCopy}>
+                  See every saved workflow, open the last cut, or jump straight into a new project. This is the actual projects screen, not a dead seed-only landing.
+                </div>
+                <div style={styles.landingHint}>use the cards on the right to resume work</div>
+              </div>
+              <SeedInput onSubmit={handleLandingSubmit} />
+            </div>
+
+            <div style={{ minHeight: 0, overflow: "auto" }}>
+              <ProjectsDashboard
+                onResume={handleHistoryResume}
+                onDelete={async (workflowId) => {
+                  const rpc = (window as any).__electrobun_rpc;
+                  await rpc?.request?.deleteWorkflow?.({ workflowId });
+                }}
+              />
+            </div>
+          </div>
+
           <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
           {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
         </div>
