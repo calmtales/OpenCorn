@@ -7,6 +7,7 @@ import type {
   AspectRatio,
   ExportFormat,
   ExportResolution,
+  TransitionType,
 } from "../../shared/types";
 import { DEFAULT_SETTINGS } from "../../shared/types";
 
@@ -15,6 +16,13 @@ const VIDEO_PROVIDERS: { value: VideoProvider; label: string }[] = [
   { value: "sora2", label: "Sora 2" },
   { value: "seedance", label: "Seedance" },
   { value: "wan", label: "WAN" },
+];
+
+const TRANSITION_TYPES: { value: TransitionType; label: string }[] = [
+  { value: "crossfade", label: "Crossfade" },
+  { value: "fade", label: "Fade" },
+  { value: "wipe", label: "Wipe" },
+  { value: "none", label: "None" },
 ];
 
 const IMAGE_PROVIDERS: { value: ImageProvider; label: string }[] = [
@@ -284,6 +292,32 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}
           </select>
+        </div>
+
+        {/* Transitions */}
+        <div style={s.section}>
+          <label style={s.label}>Transition Style</label>
+          <select
+            style={s.select}
+            value={settings.transitionType}
+            onChange={(e) => update("transitionType", e.target.value as TransitionType)}
+          >
+            {TRANSITION_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Audio & Subtitles */}
+        <div style={s.row}>
+          <div style={{ ...s.halfField, flexDirection: "row", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => update("enableAudio", !settings.enableAudio)}>
+            <input type="checkbox" checked={settings.enableAudio} onChange={() => {}} style={{ cursor: "pointer" }} />
+            <label style={{ ...s.label, marginBottom: 0, cursor: "pointer" }}>Enable AI Audio</label>
+          </div>
+          <div style={{ ...s.halfField, flexDirection: "row", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => update("enableSubtitles", !settings.enableSubtitles)}>
+            <input type="checkbox" checked={settings.enableSubtitles} onChange={() => {}} style={{ cursor: "pointer" }} />
+            <label style={{ ...s.label, marginBottom: 0, cursor: "pointer" }}>Burn Subtitles</label>
+          </div>
         </div>
 
         {/* Aspect Ratio + Scene Count */}

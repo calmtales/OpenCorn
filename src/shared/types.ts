@@ -24,6 +24,7 @@ export type ImageProvider = "nano_banana" | "seedream" | "gemini";
 export type AspectRatio = "9:16" | "16:9" | "1:1";
 export type ExportFormat = "mp4" | "webm" | "mov";
 export type ExportResolution = "480p" | "720p" | "1080p" | "4k";
+export type TransitionType = "fade" | "crossfade" | "wipe" | "none";
 export type CameraAngle = "wide" | "medium" | "close-up" | "tracking" | "dolly";
 export type LightingMood =
   | "natural"
@@ -43,6 +44,11 @@ export interface AppSettings {
   style: FilmStyle;
   exportFormat: ExportFormat;
   exportResolution: ExportResolution;
+  enableAudio: boolean;
+  enableSubtitles: boolean;
+  transitionType: TransitionType;
+  characterVoiceRefUrl?: string;
+  characterRefUrl?: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -54,6 +60,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   style: "anime",
   exportFormat: "mp4",
   exportResolution: "1080p",
+  enableAudio: false,
+  enableSubtitles: false,
+  transitionType: "crossfade",
 };
 
 export interface PipelineStatus {
@@ -141,6 +150,7 @@ export interface BunRPC {
       updates: Partial<Scene>;
     }) => { success: boolean };
     getSettings: () => AppSettings;
+    getMcpStatus: () => { connected: boolean };
     saveSettings: (args: { settings: AppSettings }) => { success: boolean };
     // Hermes
     loadSkill: (args: { skillName: string }) => { content: string };

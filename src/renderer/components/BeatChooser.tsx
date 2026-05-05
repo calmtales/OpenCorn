@@ -24,9 +24,9 @@ const s = {
   container: {
     pointerEvents: "auto" as const,
     position: "absolute" as const,
-    left: 24,
-    bottom: 16,
-    zIndex: 15,
+    left: 20,
+    bottom: 20,
+    zIndex: 25,
     display: "flex",
     flexDirection: "column" as const,
     gap: 10,

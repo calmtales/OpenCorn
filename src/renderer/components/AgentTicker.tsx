@@ -33,9 +33,9 @@ const styles = {
   container: {
     pointerEvents: "none" as const,
     position: "absolute" as const,
-    left: 24,
-    top: 168,
-    zIndex: 10,
+    left: 20,
+    top: 20,
+    zIndex: 20,
     display: "flex",
     flexDirection: "column" as const,
     gap: 8,

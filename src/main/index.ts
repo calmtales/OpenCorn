@@ -279,6 +279,11 @@ class McpClient {
       image_provider: settings.imageProvider,
       export_format: settings.exportFormat,
       export_resolution: settings.exportResolution,
+      enable_audio: settings.enableAudio,
+      enable_subtitles: settings.enableSubtitles,
+      transition_type: settings.transitionType,
+      character_voice_ref_url: settings.characterVoiceRefUrl,
+      character_ref_url: settings.characterRefUrl,
     });
   }
 
@@ -299,6 +304,23 @@ class McpClient {
   async deleteWorkflow(workflowId: string): Promise<boolean> {
     try {
       await this.callTool("delete_workflow", { workflow_id: workflowId });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async updateScene(
+    workflowId: string,
+    sceneId: string,
+    updates: Partial<Scene>
+  ): Promise<boolean> {
+    try {
+      await this.callTool("update_scene", {
+        workflow_id: workflowId,
+        scene_id: sceneId,
+        updates,
+      });
       return true;
     } catch {
       return false;
@@ -394,6 +416,7 @@ interface AppRPCSchema extends ElectrobunRPCSchema {
       resumeWorkflow: { params: { workflowId: string }; response: { workflowId: string; storyboard?: Storyboard; videoUrl?: string } };
       updateScene: { params: { workflowId: string; sceneId: string; updates: Partial<Scene> }; response: { success: boolean } };
       getSettings: { params: undefined; response: AppSettings };
+      getMcpStatus: { params: undefined; response: { connected: boolean } };
       saveSettings: { params: { settings: AppSettings }; response: { success: boolean } };
       loadSkill: { params: { skillName: string }; response: { content: string } };
       comfyConnect: { params: { url: string }; response: { success: boolean; models: ComfyUIModel[] } };
@@ -571,11 +594,20 @@ rpc.setRequestHandler({
         s.id === sceneId ? { ...s, ...updates } : s
       );
     }
+    
+    if (mcp.isConnected()) {
+      await mcp.updateScene(workflowId, sceneId, updates);
+    }
+    
     return { success: true };
   },
 
   getSettings: async () => {
     return currentSettings;
+  },
+
+  getMcpStatus: async () => {
+    return { connected: mcp.isConnected() };
   },
 
   saveSettings: async ({ settings }: { settings: AppSettings }) => {

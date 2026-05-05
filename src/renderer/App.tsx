@@ -34,6 +34,20 @@ type SidePanel = "settings" | "history" | "promptcraft" | "presets" | null;
 
 const VERSION = "0.4.0";
 
+function Logo({ size = 22 }: { size?: number }) {
+  return (
+    <div style={styles.logo}>
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="2" y="2" width="20" height="20" rx="4" fill="var(--accent)" />
+        <path d="M8 8L16 12L8 16V8Z" fill="var(--bg-primary)" />
+      </svg>
+      <span style={styles.logoText}>
+        <span style={styles.logoAccent}>Open</span>Corn
+      </span>
+    </div>
+  );
+}
+
 const styles = {
   app: {
     display: "flex",
@@ -227,16 +241,18 @@ const styles = {
   landingShell: {
     flex: 1,
     display: "grid",
-    gridTemplateColumns: "minmax(340px, 0.9fr) minmax(0, 1.1fr)",
-    gap: 18,
-    padding: 20,
-    overflow: "hidden",
+    gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))",
+    gap: 20,
+    padding: 24,
+    overflow: "auto",
+    background: "radial-gradient(circle at center, rgba(79,195,247,0.03), transparent 70%)",
   },
   landingCard: {
     display: "flex",
     flexDirection: "column" as const,
-    gap: 18,
+    gap: 20,
     minHeight: 0,
+    maxHeight: "100%",
   },
   landingHero: {
     padding: 18,
@@ -542,15 +558,7 @@ export default function App() {
               backdropFilter: "blur(12px)",
             }}
           >
-            <div style={styles.logo}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <rect x="2" y="2" width="20" height="20" rx="4" fill="var(--accent)" />
-                <path d="M8 8L16 12L8 16V8Z" fill="var(--bg-primary)" />
-              </svg>
-              <span style={styles.logoText}>
-                <span style={styles.logoAccent}>Open</span>Corn
-              </span>
-            </div>
+            <Logo />
             <span style={styles.landingHint}>projects • start • resume</span>
           </div>
 
@@ -598,14 +606,8 @@ export default function App() {
 
         {/* Header */}
         <div style={styles.header} role="banner">
-          <div style={styles.logo}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="2" y="2" width="20" height="20" rx="4" fill="var(--accent)" />
-              <path d="M8 8L16 12L8 16V8Z" fill="var(--bg-primary)" />
-            </svg>
-            <span style={styles.logoText}>
-              <span style={styles.logoAccent}>Open</span>Corn
-            </span>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <Logo />
             {/* ← Projects quick nav */}
             <button
               style={{

@@ -78,11 +78,11 @@ const INDUSTRY_OPTIONS: { value: IndustryMode; label: string; icon: string }[] =
 
 const styles = {
   container: {
-    position: "fixed" as const,
-    inset: 0,
     display: "flex",
     flexDirection: "column" as const,
     overflow: "hidden",
+    position: "relative" as const,
+    flex: 1,
   },
   backdrop: {
     position: "absolute" as const,

@@ -37,8 +37,9 @@ export function McpStatus({ connected }: Props) {
     const check = async () => {
       try {
         const rpc = (window as any).__electrobun_rpc;
-        if (rpc?.request?.pollStatus) {
-          setMcpAlive(true);
+        if (rpc?.request?.getMcpStatus) {
+          const { connected } = await rpc.request.getMcpStatus();
+          setMcpAlive(connected);
         }
       } catch {
         setMcpAlive(false);
