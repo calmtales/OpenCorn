@@ -533,8 +533,13 @@ rpc.setRequestHandler({
     );
     workflowStore.set(workflowId, { storyboard });
 
-    // Push storyboard to renderer
+    // Push storyboard to renderer — this triggers canvas load immediately
     rpc.send("onStoryboardReady", { storyboard });
+
+    // Push pipeline stage update so UI transitions from "screenplay" to "keyframes"
+    rpc.send("onPipelineUpdate", {
+      status: { stage: "generating_keyframes", progress: 30 },
+    });
 
     // Kick off full pipeline in background
     mcp
@@ -547,14 +552,30 @@ rpc.setRequestHandler({
         const entry = workflowStore.get(workflowId);
         if (entry) entry.videoUrl = mergedUrl ?? firstVideo;
 
+        // Push intermediate stage updates
+        if (videos.length > 0) {
+          rpc.send("onPipelineUpdate", {
+            status: { stage: "generating_video", progress: 70 },
+          });
+        }
+
         if (mergedUrl || firstVideo) {
+          rpc.send("onPipelineUpdate", {
+            status: { stage: "stitching", progress: 90 },
+          });
           rpc.send("onVideoReady", {
             videoUrl: mergedUrl ?? firstVideo,
+          });
+          rpc.send("onPipelineUpdate", {
+            status: { stage: "complete", progress: 100 },
           });
         }
       })
       .catch((err) => {
         console.error("Pipeline failed:", err);
+        rpc.send("onPipelineUpdate", {
+          status: { stage: "idle", progress: 0, error: String(err) },
+        });
       });
 
     return { workflowId };
@@ -631,12 +652,15 @@ rpc.setRequestHandler({
         // MCP lookup failed — renderer will just have the workflowId
       }
 
-      // Check current MCP pipeline status
+      // Check current MCP pipeline status and push immediately
       try {
         const status = await mcp.getWorkflowStatus(workflowId);
         rpc.send("onPipelineUpdate", { status });
-      } catch {
-        // Status check failed
+      } catch (err) {
+        // Status check failed — push a generic resume state
+        rpc.send("onPipelineUpdate", {
+          status: { stage: "generating_screenplay", progress: 10 },
+        });
       }
     }
 

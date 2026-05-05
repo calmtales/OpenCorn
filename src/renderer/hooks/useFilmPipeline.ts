@@ -55,18 +55,26 @@ export function useFilmPipeline() {
       .catch(() => {});
   }, []);
 
-  // Keep screenplay progress alive so the UI doesn't look frozen at 5%.
+  // Smooth progress estimator during screenplay generation.
+  // Uses exponential decay so progress approaches but never reaches 100%,
+  // allowing real pipeline events to take over at any point.
   useEffect(() => {
     if (state.stage !== "generating_screenplay") return;
+    // Aim for ~85% over 30s, ~92% over 60s.  Real pipeline events override.
+    const startTime = Date.now();
     const t = setInterval(() => {
       setState((prev) => {
         if (prev.stage !== "generating_screenplay") return prev;
+        const elapsed = (Date.now() - startTime) / 1000; // seconds
+        // Asymptotic curve: starts at 8, approaches ~95 as t→∞
+        // f(t) = 95 - 87 * e^(-0.04t)  →  8 at t=0,  86 at t=50s
+        const smoothProgress = Math.round(95 - 87 * Math.exp(-0.04 * elapsed));
         return {
           ...prev,
-          progress: Math.min(prev.progress + 1, 22),
+          progress: Math.max(prev.progress, smoothProgress),
         };
       });
-    }, 900);
+    }, 800);
     return () => clearInterval(t);
   }, [state.stage]);
 
