@@ -92,7 +92,7 @@ const styles = {
   },
 };
 
-// Canvas-level keyframe animation injection
+// Canvas-level keyframe animation injection + dot grid background
 if (typeof document !== "undefined" && !document.getElementById("canvas-animations")) {
   const style = document.createElement("style");
   style.id = "canvas-animations";
@@ -106,6 +106,14 @@ if (typeof document !== "undefined" && !document.getElementById("canvas-animatio
     .react-flow__minimap { transition: opacity 0.2s ease; }
     /* Ensure edge animations are smooth */
     .react-flow__edge { transition: stroke 0.16s ease, stroke-width 0.16s ease; }
+
+    /* Tactical dot grid background */
+    .opencorn-canvas-wrap {
+      background-image:
+        radial-gradient(circle, rgba(79,195,247,0.07) 1px, transparent 1px);
+      background-size: 28px 28px;
+      background-position: 0 0;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -262,7 +270,7 @@ function InnerCanvas() {
 }
 
 export function Canvas() {
-  return <InnerCanvas />;
+  return <div className="opencorn-canvas-wrap" style={{ width: "100%", height: "100%" }}><InnerCanvas /></div>;
 }
 
 export { ReactFlowProvider };

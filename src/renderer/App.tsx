@@ -32,7 +32,7 @@ import { ModeSelector } from "./components/ModeSelector";
 
 type SidePanel = "settings" | "history" | "promptcraft" | "presets" | null;
 
-const VERSION = "0.4.0";
+const VERSION = "0.5.0";
 
 function Logo({ size = 22 }: { size?: number }) {
   return (
@@ -48,11 +48,67 @@ function Logo({ size = 22 }: { size?: number }) {
   );
 }
 
+/** HUD-style navigation bar shared by landing & projects modes. */
+function HudNav({ current, onNewProject }: { current: "landing" | "projects"; onNewProject?: () => void }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "12px 20px",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(6,8,12,0.84)",
+        backdropFilter: "blur(12px)",
+        flexShrink: 0,
+      }}
+      role="banner"
+    >
+      <Logo />
+      <nav style={{ display: "flex", alignItems: "center", gap: 6 }} aria-label="Main navigation">
+        <button
+          style={{
+            ...styles.navTab(current === "landing"),
+          }}
+          onClick={() => useStory.getState().resetToLanding()}
+          aria-current={current === "landing" ? "page" : undefined}
+        >
+          ○ New Studio
+        </button>
+        <button
+          style={{
+            ...styles.navTab(current === "projects"),
+          }}
+          onClick={() => useStory.getState().navigateToProjects()}
+          aria-current={current === "projects" ? "page" : undefined}
+        >
+          ◻ Archive
+        </button>
+        {onNewProject && current === "projects" && (
+          <button
+            style={{
+              ...styles.navTab(false),
+              marginLeft: 8,
+              borderColor: "rgba(233,193,107,0.35)",
+              color: "#e9c16b",
+            }}
+            onClick={onNewProject}
+          >
+            + New Project
+          </button>
+        )}
+      </nav>
+      <span style={styles.landingHint}>v{VERSION}</span>
+    </div>
+  );
+}
+
 const styles = {
   app: {
     display: "flex",
     flexDirection: "column" as const,
     height: "100%",
+    minHeight: 0,
     overflow: "hidden",
     background: "radial-gradient(circle at top, rgba(20,26,36,0.95), var(--bg-primary) 45%, #040507 100%)",
   },
@@ -286,6 +342,23 @@ const styles = {
     color: active ? "var(--accent)" : "var(--text-muted)",
     fontSize: 10,
     fontWeight: 500,
+    cursor: "pointer",
+    transition: "all var(--duration-fast) var(--ease-out)",
+  }),
+  navTab: (active: boolean) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    padding: "6px 14px",
+    background: active ? "rgba(233,193,107,0.1)" : "transparent",
+    border: `1px solid ${active ? "rgba(233,193,107,0.4)" : "rgba(255,255,255,0.06)"}`,
+    borderRadius: 4,
+    color: active ? "#e9c16b" : "var(--text-secondary)",
+    fontSize: 11,
+    fontWeight: 600,
+    fontFamily: "var(--font-mono)",
+    letterSpacing: "0.16em",
+    textTransform: "uppercase" as const,
     cursor: "pointer",
     transition: "all var(--duration-fast) var(--ease-out)",
   }),
@@ -567,29 +640,7 @@ export default function App() {
     return (
       <ErrorBoundary>
         <div style={styles.app}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "12px 20px",
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
-              background: "rgba(6,8,12,0.84)",
-              backdropFilter: "blur(12px)",
-            }}
-          >
-            <Logo />
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button
-                style={styles.highContrastBtn(false)}
-                onClick={() => useStory.getState().navigateToProjects()}
-                title="Browse all projects"
-              >
-                Projects
-              </button>
-              <span style={styles.landingHint}>start • resume • create</span>
-            </div>
-          </div>
+          <HudNav current="landing" />
 
           <div style={styles.landingShell}>
             <div style={styles.landingCard}>
@@ -635,29 +686,7 @@ export default function App() {
     return (
       <ErrorBoundary>
         <div style={styles.app}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "12px 20px",
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
-              background: "rgba(6,8,12,0.84)",
-              backdropFilter: "blur(12px)",
-            }}
-          >
-            <Logo />
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button
-                style={styles.highContrastBtn(false)}
-                onClick={() => useStory.getState().resetToLanding()}
-                title="Start a new project"
-              >
-                + New Project
-              </button>
-              <span style={styles.landingHint}>v{VERSION}</span>
-            </div>
-          </div>
+          <HudNav current="projects" onNewProject={() => useStory.getState().resetToLanding()} />
 
           <div
             style={{
@@ -700,30 +729,13 @@ export default function App() {
         <div style={styles.header} role="banner">
           <div style={{ display: "flex", alignItems: "center" }}>
             <Logo />
-            {/* ← Projects quick nav */}
             <button
-              style={{
-                marginLeft: 14,
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                padding: "3px 8px",
-                border: "1px solid rgba(255,255,255,0.08)",
-                borderRadius: "var(--radius-sm)",
-                background: "transparent",
-                color: "var(--text-muted)",
-                fontSize: 10,
-                fontFamily: "var(--font-mono)",
-                letterSpacing: "0.18em",
-                textTransform: "uppercase" as const,
-                cursor: "pointer",
-                transition: "all var(--duration-fast) var(--ease-out)",
-              }}
+              style={{ ...styles.navTab(false), marginLeft: 14 }}
               onClick={() => useStory.getState().navigateToProjects()}
               title="Back to projects dashboard"
               aria-label="Back to projects"
             >
-              ← projects
+              ← Archive
             </button>
           </div>
 
