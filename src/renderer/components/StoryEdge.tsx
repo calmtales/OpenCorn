@@ -1,6 +1,6 @@
 /*  ──────────────────────────────────────────────────────────────────────
- *  StoryEdge — bracket connector with arm/trunk + buttons
- *  Noustiny-style branching canvas, ported for OpenCorn
+ *  StoryEdge — Orthogonal 90° tactical connector
+ *  Noustiny-style branching canvas: Golden Path, geometric buttons
  *  Inline CSS only — no Tailwind, no framer-motion
  *  ────────────────────────────────────────────────────────────────────── */
 
@@ -8,37 +8,32 @@ import { BaseEdge, EdgeLabelRenderer, type EdgeProps } from "@xyflow/react";
 import { Plus } from "lucide-react";
 import { useStory } from "../lib/store";
 
-const RADIUS = 9;
 const SPINE_OFFSET = 95;
+const RADIUS = 8;
 
 function computeSpine(sx: number, tx: number): number {
   const mid = (sx + tx) / 2;
   return Math.min(sx + SPINE_OFFSET, mid);
 }
 
-function bracketPath(
+/** Orthogonal 90° step path — pure horizontal → vertical → horizontal. */
+function orthogonalPath(
   sx: number,
   sy: number,
   tx: number,
   ty: number,
 ): string {
   const spine = computeSpine(sx, tx);
-  const dy = ty - sy;
-  if (Math.abs(dy) < 1) return `M ${sx},${sy} L ${tx},${ty}`;
-  const sign = dy > 0 ? 1 : -1;
-  const halfH = (tx - sx) / 2;
-  const r = Math.max(1, Math.min(RADIUS, Math.abs(dy) / 2, halfH - 1));
+  if (Math.abs(ty - sy) < 1) return `M ${sx},${sy} L ${tx},${ty}`;
   return [
     `M ${sx},${sy}`,
-    `L ${spine - r},${sy}`,
-    `Q ${spine},${sy} ${spine},${sy + sign * r}`,
-    `L ${spine},${ty - sign * r}`,
-    `Q ${spine},${ty} ${spine + r},${ty}`,
-    `L ${tx},${ty}`,
+    `L ${spine},${sy}`,  // horizontal out from source
+    `L ${spine},${ty}`,  // vertical step
+    `L ${tx},${ty}`,     // horizontal into target
   ].join(" ");
 }
 
-// Inline style objects — tactical bracket buttons
+// Inline style objects — tactical geometric buttons
 const styles = {
   spliceBtn: (canon: boolean) => ({
     display: "flex",
@@ -49,15 +44,15 @@ const styles = {
     height: 28,
     padding: "0 8px",
     cursor: "pointer",
-    border: `1.5px solid ${canon ? "rgba(233,193,107,0.7)" : "rgba(79,195,247,0.7)"}`,
+    border: `1.5px solid ${canon ? "rgba(233,193,107,0.7)" : "rgba(79,195,247,0.45)"}`,
     background: canon
-      ? "linear-gradient(180deg, rgba(233,193,107,0.15), rgba(233,193,107,0.05))"
-      : "linear-gradient(180deg, rgba(79,195,247,0.15), rgba(79,195,247,0.05))",
+      ? "linear-gradient(180deg, rgba(233,193,107,0.18), rgba(233,193,107,0.06))"
+      : "linear-gradient(180deg, rgba(79,195,247,0.12), rgba(79,195,247,0.04))",
     color: canon ? "#e9c16b" : "#4fc3f7",
     boxShadow: canon
-      ? "0 0 14px rgba(233,193,107,0.25), inset 0 1px 0 rgba(233,193,107,0.15)"
-      : "0 0 12px rgba(79,195,247,0.25), inset 0 1px 0 rgba(79,195,247,0.15)",
-    // Tactical bracket clip-path
+      ? "0 0 14px rgba(233,193,107,0.3), inset 0 1px 0 rgba(233,193,107,0.15)"
+      : "0 0 10px rgba(79,195,247,0.2), inset 0 1px 0 rgba(79,195,247,0.1)",
+    // Geometric tactical clip-path (arrow-right)
     clipPath: "polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%)",
     transition: "all 0.18s ease",
     outline: "none",
@@ -77,11 +72,11 @@ const styles = {
     height: 26,
     padding: "0 10px",
     cursor: "pointer",
-    background: "linear-gradient(180deg, rgba(15,19,27,0.92), rgba(10,13,18,0.88))",
+    background: "linear-gradient(180deg, rgba(15,19,27,0.94), rgba(10,13,18,0.9))",
     border: "1px solid rgba(233,193,107,0.4)",
     color: "rgba(233,193,107,0.7)",
     backdropFilter: "blur(4px)",
-    // Tactical bracket clip-path (mirrored)
+    // Geometric tactical clip-path (diamond)
     clipPath: "polygon(0 0, 100% 0, calc(100% - 5px) 50%, 100% 100%, 0 100%, 5px 50%)",
     transition: "all 0.18s ease",
     outline: "none",
@@ -90,14 +85,13 @@ const styles = {
     fontWeight: 700,
     letterSpacing: "0.22em",
     textTransform: "uppercase" as const,
-    backdropFilter: "blur(4px)",
   },
   labelTag: {
     fontFamily: "var(--font-mono)",
     fontSize: 7.5,
     textTransform: "uppercase" as const,
     letterSpacing: "0.32em",
-    opacity: 0.6,
+    opacity: 0.7,
   },
 };
 
@@ -107,7 +101,7 @@ export function StoryEdge({
   data, markerEnd,
 }: EdgeProps) {
   const meta = (data ?? {}) as { canon?: boolean; explored?: boolean };
-  const path = bracketPath(sourceX, sourceY, targetX, targetY);
+  const path = orthogonalPath(sourceX, sourceY, targetX, targetY);
   const openInsertModal = useStory((s) => s.openInsertModal);
 
   // Highlight ancestor chain of hovered node
@@ -122,19 +116,20 @@ export function StoryEdge({
     return false;
   });
 
+  // Golden Path: canon edges get amber glow, highlighted edges get bright amber
   const stroke = isHighlighted
     ? "#e9c16b"
     : meta.canon
-      ? "#4fc3f7"
+      ? "#e9c16b"  // Golden Path — amber for canon
       : meta.explored
         ? "#64748b"
-        : "rgba(100,116,139,0.4)";
-  const width = isHighlighted ? 2.4 : meta.canon ? 1.9 : meta.explored ? 1.3 : 1;
+        : "rgba(100,116,139,0.35)";
+  const width = isHighlighted ? 2.8 : meta.canon ? 2.2 : meta.explored ? 1.3 : 1;
   const dash = isHighlighted || meta.canon || meta.explored ? undefined : "4 4";
   const filter = isHighlighted
-    ? "drop-shadow(0 0 7px rgba(233,193,107,0.6))"
+    ? "drop-shadow(0 0 8px rgba(233,193,107,0.7)) drop-shadow(0 0 16px rgba(233,193,107,0.3))"
     : meta.canon
-      ? "drop-shadow(0 0 5px rgba(79,195,247,0.4))"
+      ? "drop-shadow(0 0 6px rgba(233,193,107,0.5)) drop-shadow(0 0 12px rgba(233,193,107,0.2))"
       : undefined;
 
   // Button positions
