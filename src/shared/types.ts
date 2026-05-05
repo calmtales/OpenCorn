@@ -67,6 +67,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   enableAudio: false,
   enableSubtitles: false,
   transitionType: "crossfade",
+  brainstormModel: undefined,
+  writerModel: undefined,
+  directorModel: undefined,
 };
 
 export interface PipelineStatus {

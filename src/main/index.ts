@@ -238,7 +238,7 @@ class McpClient {
     settings: AppSettings
   ): Promise<{ workflowId: string; storyboard: Storyboard }> {
     const animeStyle = STYLE_MAP[style] ?? "ANIME";
-    const result = await this.callTool("generate_screenplay", {
+    const toolArgs: Record<string, unknown> = {
       idea,
       anime_style: animeStyle,
       num_scenes: settings.sceneCount,
@@ -246,7 +246,11 @@ class McpClient {
       aspect_ratio: settings.aspectRatio,
       video_provider: settings.videoProvider,
       image_provider: settings.imageProvider,
-    });
+    };
+    // Pass model routing overrides
+    if (settings.writerModel) toolArgs.model = settings.writerModel;
+
+    const result = await this.callTool("generate_screenplay", toolArgs);
 
     const workflowId = result.workflow_id;
     const screenplay = result.screenplay;
@@ -269,7 +273,7 @@ class McpClient {
     workflowId?: string
   ): Promise<any> {
     const animeStyle = STYLE_MAP[style] ?? "ANIME";
-    return this.callTool("run_full_pipeline", {
+    const toolArgs: Record<string, unknown> = {
       idea,
       anime_style: animeStyle,
       num_scenes: settings.sceneCount,
@@ -284,7 +288,12 @@ class McpClient {
       transition_type: settings.transitionType,
       character_voice_ref_url: settings.characterVoiceRefUrl,
       character_ref_url: settings.characterRefUrl,
-    });
+    };
+    // Pass model routing overrides
+    if (settings.writerModel) toolArgs.model = settings.writerModel;
+    if (settings.directorModel) toolArgs.director_model = settings.directorModel;
+
+    return this.callTool("run_full_pipeline", toolArgs);
   }
 
   async listWorkflows(): Promise<WorkflowSummary[]> {

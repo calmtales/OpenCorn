@@ -396,6 +396,43 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
             </select>
           </div>
         </div>
+
+        {/* Model Routing */}
+        <div style={{ ...s.section, borderTop: "1px solid var(--border-subtle)", paddingTop: 16 }}>
+          <label style={{ ...s.label, fontSize: 11, color: "var(--accent)" }}>
+            🧠 Model Routing
+          </label>
+          <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6 }}>
+            Override the default LLM model for each narrative agent
+          </div>
+          <div style={s.section}>
+            <label style={s.label}>Brainstorm Model</label>
+            <input
+              style={s.input}
+              value={settings.brainstormModel ?? ""}
+              onChange={(e) => update("brainstormModel", e.target.value || undefined)}
+              placeholder="Default (gemini-2.5-flash)"
+            />
+          </div>
+          <div style={s.section}>
+            <label style={s.label}>Writer Model</label>
+            <input
+              style={s.input}
+              value={settings.writerModel ?? ""}
+              onChange={(e) => update("writerModel", e.target.value || undefined)}
+              placeholder="Default (gemini-2.5-flash)"
+            />
+          </div>
+          <div style={s.section}>
+            <label style={s.label}>Director Model</label>
+            <input
+              style={s.input}
+              value={settings.directorModel ?? ""}
+              onChange={(e) => update("directorModel", e.target.value || undefined)}
+              placeholder="Default (gemini-2.5-flash)"
+            />
+          </div>
+        </div>
       </div>
 
       <div style={s.footer}>
