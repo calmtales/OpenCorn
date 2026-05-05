@@ -10,10 +10,31 @@ import {
   Lock, Check, ChevronRight, ArrowRight, X, Bot, User,
 } from "lucide-react";
 import type { ComponentType, CSSProperties, SVGProps } from "react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { NodeMood, NodeTone, StoryNode as TStoryNode } from "../lib/types";
 import { useStory, modeLabels, modeStylePrefix } from "../lib/store";
 import { variantOf, COMPACT_RIBBON_Y, CHECKPOINT_HEIGHT, COMPACT_HEIGHT } from "../lib/layout";
+
+// Inject keyframe animations for weaving/generating states
+if (typeof document !== "undefined" && !document.getElementById("storynode-animations")) {
+  const style = document.createElement("style");
+  style.id = "storynode-animations";
+  style.textContent = `
+    @keyframes scanSweep {
+      0% { background-position: 0% -100%; }
+      100% { background-position: 0% 200%; }
+    }
+    @keyframes weavingPulse {
+      0%, 100% { opacity: 0.7; }
+      50% { opacity: 1; }
+    }
+    @keyframes generatingGlow {
+      0%, 100% { box-shadow: 0 0 12px rgba(79,195,247,0.3); }
+      50% { box-shadow: 0 0 24px rgba(79,195,247,0.6); }
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 type Props = NodeProps & { data: { node: TStoryNode } };
 
@@ -249,20 +270,39 @@ const sCheckpoint = {
     position: "absolute" as const,
     inset: 0,
     display: "flex",
+    flexDirection: "column" as const,
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
     fontFamily: "var(--font-mono)",
     fontSize: 10,
     textTransform: "uppercase" as const,
     letterSpacing: "0.3em",
   },
+  weavingText: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    fontWeight: 700,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.36em",
+    textShadow: "0 0 12px currentColor",
+    animation: "weavingPulse 2.5s ease-in-out infinite",
+  },
   scanLine: {
     position: "absolute" as const,
     inset: 0,
     pointerEvents: "none" as const,
-    opacity: 0.2,
+    opacity: 0.15,
     backgroundImage:
-      "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.03) 2px, rgba(255,255,255,0.03) 4px)",
+      "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.04) 2px, rgba(255,255,255,0.04) 4px)",
+  },
+  scanSweep: {
+    position: "absolute" as const,
+    inset: 0,
+    pointerEvents: "none" as const,
+    background: "linear-gradient(180deg, transparent 0%, rgba(79,195,247,0.06) 50%, transparent 100%)",
+    backgroundSize: "100% 200%",
+    animation: "scanSweep 3s linear infinite",
   },
 } as const;
 
@@ -417,17 +457,20 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
               "linear-gradient(180deg, rgba(10,13,18,0.12) 0%, transparent 45%, rgba(10,13,18,0.6) 100%)",
           }}
         />
-        {/* Weaving overlay */}
+        {/* Weaving overlay — immersive generating state */}
         {node.status === "generating" && (
           <div
             style={{
               ...sCheckpoint.weavingOverlay,
-              background: isShell ? "rgba(5,7,11,0.8)" : "rgba(5,7,11,0.7)",
+              background: isShell ? "rgba(5,7,11,0.88)" : "rgba(5,7,11,0.78)",
               color: isShell ? "#e9c16b" : "#4fc3f7",
             }}
           >
-            <Lock size={12} style={{ marginRight: 6, opacity: 0.7 }} />
-            {isShell ? "new beat weaving…" : "agent imagining…"}
+            <div style={sCheckpoint.scanSweep} />
+            <Lock size={12} style={{ opacity: 0.6 }} />
+            <span style={sCheckpoint.weavingText}>
+              {isShell ? "weaving…" : "imagining…"}
+            </span>
           </div>
         )}
       </div>
@@ -581,14 +624,17 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
       <div
         style={{
           ...sCheckpoint.imageWrap,
-          boxShadow: isShell
-            ? "0 0 18px rgba(233,193,107,0.28)"
-            : staleTint
-              ? `inset 0 0 0 1.5px ${staleTint}, 0 0 20px ${staleTint}40`
-              : isHover
-                ? "inset 0 0 0 1px #4fc3f7, 0 0 18px rgba(79,195,247,0.2)"
-                : "inset 0 0 0 1px rgba(255,255,255,0.08)",
+          boxShadow: node.status === "generating"
+            ? "0 0 22px rgba(79,195,247,0.35), 0 0 44px rgba(79,195,247,0.15)"
+            : isShell
+              ? "0 0 18px rgba(233,193,107,0.28)"
+              : staleTint
+                ? `inset 0 0 0 1.5px ${staleTint}, 0 0 20px ${staleTint}40`
+                : isHover
+                  ? "inset 0 0 0 1px #4fc3f7, 0 0 18px rgba(79,195,247,0.2)"
+                  : "inset 0 0 0 1px rgba(255,255,255,0.08)",
           transition: "box-shadow 0.18s ease",
+          animation: node.status === "generating" ? "generatingGlow 2.5s ease-in-out infinite" : undefined,
         }}
       >
         <div style={sCheckpoint.imageInner}>
@@ -620,17 +666,24 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
           />
           {isCurrent && <div style={sCheckpoint.scanLine} />}
 
-          {/* Weaving overlay */}
+          {/* Weaving overlay — immersive generating state */}
           {node.status === "generating" && (
             <div
               style={{
                 ...sCheckpoint.weavingOverlay,
-                background: isShell ? "#05070b" : loaded ? "rgba(5,7,11,0.62)" : "#05070b",
+                background: isShell
+                  ? "rgba(5,7,11,0.92)"
+                  : loaded
+                    ? "rgba(5,7,11,0.72)"
+                    : "rgba(5,7,11,0.92)",
                 color: isShell ? "#e9c16b" : "#4fc3f7",
               }}
             >
-              <Lock size={12} style={{ marginRight: 8, opacity: 0.7 }} />
-              {isShell ? "new beat weaving…" : "agent weaving…"}
+              <div style={sCheckpoint.scanSweep} />
+              <Lock size={14} style={{ opacity: 0.6 }} />
+              <span style={sCheckpoint.weavingText}>
+                {isShell ? "weaving new beat…" : "agent imagining…"}
+              </span>
             </div>
           )}
 

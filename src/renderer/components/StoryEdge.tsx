@@ -38,45 +38,66 @@ function bracketPath(
   ].join(" ");
 }
 
-// Inline style objects
+// Inline style objects — tactical bracket buttons
 const styles = {
-  plusBtn: (canon: boolean) => ({
+  spliceBtn: (canon: boolean) => ({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    width: 32,
-    height: 32,
+    gap: 3,
+    minWidth: 36,
+    height: 28,
+    padding: "0 8px",
     cursor: "pointer",
-    border: `1.5px solid ${canon ? "#e9c16b" : "#4fc3f7"}`,
-    background: canon ? "rgba(10,13,18,0.95)" : "rgba(15,19,27,0.88)",
+    border: `1.5px solid ${canon ? "rgba(233,193,107,0.7)" : "rgba(79,195,247,0.7)"}`,
+    background: canon
+      ? "linear-gradient(180deg, rgba(233,193,107,0.15), rgba(233,193,107,0.05))"
+      : "linear-gradient(180deg, rgba(79,195,247,0.15), rgba(79,195,247,0.05))",
     color: canon ? "#e9c16b" : "#4fc3f7",
     boxShadow: canon
-      ? "0 0 12px rgba(233,193,107,0.35)"
-      : "0 0 10px rgba(79,195,247,0.35)",
-    clipPath: "polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%)",
-    transition: "transform 0.15s ease, box-shadow 0.15s ease",
+      ? "0 0 14px rgba(233,193,107,0.25), inset 0 1px 0 rgba(233,193,107,0.15)"
+      : "0 0 12px rgba(79,195,247,0.25), inset 0 1px 0 rgba(79,195,247,0.15)",
+    // Tactical bracket clip-path
+    clipPath: "polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%)",
+    transition: "all 0.18s ease",
     outline: "none",
+    fontFamily: "var(--font-mono)",
+    fontSize: 8.5,
+    fontWeight: 700,
+    letterSpacing: "0.18em",
+    textTransform: "uppercase" as const,
+    backdropFilter: "blur(4px)",
   }),
-  trunkBtn: {
+  forkBtn: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    width: 28,
-    height: 28,
-    borderRadius: "50%",
+    gap: 4,
+    minWidth: 40,
+    height: 26,
+    padding: "0 10px",
     cursor: "pointer",
-    background: "rgba(15,19,27,0.88)",
-    border: "1.2px dashed rgba(170,185,205,0.3)",
-    color: "rgba(138,150,170,0.6)",
-    backdropFilter: "blur(2px)",
-    transition: "transform 0.18s ease, border 0.18s ease, color 0.18s ease, box-shadow 0.18s ease",
+    background: "linear-gradient(180deg, rgba(15,19,27,0.92), rgba(10,13,18,0.88))",
+    border: "1px solid rgba(233,193,107,0.4)",
+    color: "rgba(233,193,107,0.7)",
+    backdropFilter: "blur(4px)",
+    // Tactical bracket clip-path (mirrored)
+    clipPath: "polygon(0 0, 100% 0, calc(100% - 5px) 50%, 100% 100%, 0 100%, 5px 50%)",
+    transition: "all 0.18s ease",
     outline: "none",
-  },
-  ghostLabel: {
     fontFamily: "var(--font-mono)",
-    fontSize: 8.5,
+    fontSize: 8,
+    fontWeight: 700,
+    letterSpacing: "0.22em",
+    textTransform: "uppercase" as const,
+    backdropFilter: "blur(4px)",
+  },
+  labelTag: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 7.5,
     textTransform: "uppercase" as const,
     letterSpacing: "0.32em",
+    opacity: 0.6,
   },
 };
 
@@ -139,7 +160,7 @@ export function StoryEdge({
       />
 
       <EdgeLabelRenderer>
-        {/* ARM + — canon splice between parent/child */}
+        {/* SPLICE — tactical bracket button between parent/child */}
         <div
           style={{
             position: "absolute",
@@ -154,14 +175,27 @@ export function StoryEdge({
               e.stopPropagation();
               openInsertModal(source, target, "canon");
             }}
-            style={styles.plusBtn(!!meta.canon)}
+            style={styles.spliceBtn(!!meta.canon)}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.08)";
+              e.currentTarget.style.boxShadow = meta.canon
+                ? "0 0 20px rgba(233,193,107,0.4), inset 0 1px 0 rgba(233,193,107,0.2)"
+                : "0 0 18px rgba(79,195,247,0.4), inset 0 1px 0 rgba(79,195,247,0.2)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+              e.currentTarget.style.boxShadow = meta.canon
+                ? "0 0 14px rgba(233,193,107,0.25), inset 0 1px 0 rgba(233,193,107,0.15)"
+                : "0 0 12px rgba(79,195,247,0.25), inset 0 1px 0 rgba(79,195,247,0.15)";
+            }}
             title="Splice a moment between these two beats"
           >
-            <Plus size={15} strokeWidth={2.6} />
+            <Plus size={12} strokeWidth={2.8} />
+            <span style={styles.labelTag}>splice</span>
           </button>
         </div>
 
-        {/* TRUNK + — what-if sibling on parent stub */}
+        {/* FORK — tactical what-if sibling button */}
         <div
           style={{
             position: "absolute",
@@ -176,22 +210,23 @@ export function StoryEdge({
               e.stopPropagation();
               openInsertModal(source, target, "what-if");
             }}
-            style={styles.trunkBtn}
+            style={styles.forkBtn}
             onMouseEnter={(e) => {
-              e.currentTarget.style.border = "1.2px solid #e9c16b";
+              e.currentTarget.style.borderColor = "rgba(233,193,107,0.8)";
               e.currentTarget.style.color = "#e9c16b";
-              e.currentTarget.style.boxShadow = "0 0 14px rgba(233,193,107,0.45)";
-              e.currentTarget.style.transform = "scale(1.1)";
+              e.currentTarget.style.boxShadow = "0 0 18px rgba(233,193,107,0.35)";
+              e.currentTarget.style.transform = "scale(1.08)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.border = "1.2px dashed rgba(170,185,205,0.3)";
-              e.currentTarget.style.color = "rgba(138,150,170,0.6)";
+              e.currentTarget.style.borderColor = "rgba(233,193,107,0.4)";
+              e.currentTarget.style.color = "rgba(233,193,107,0.7)";
               e.currentTarget.style.boxShadow = "none";
               e.currentTarget.style.transform = "scale(1)";
             }}
-            title="Spawn a what-if sibling on this branch"
+            title="Spawn a what-if fork on this branch"
           >
-            <Plus size={13} strokeWidth={2.4} />
+            <Plus size={11} strokeWidth={2.6} />
+            <span style={styles.labelTag}>fork</span>
           </button>
         </div>
       </EdgeLabelRenderer>
