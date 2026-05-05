@@ -441,6 +441,20 @@ export function PromptCraft({ storyboard, onSceneUpdate, onClose }: Props) {
                       </div>
                     )}
                   </div>
+
+                  {/* Voice Ref URL */}
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <div style={s.fieldLabel}>Voice Ref URL (for cloning)</div>
+                    <input
+                      style={s.textarea as any}
+                      value={scene.voiceRefUrl ?? ""}
+                      onChange={(e) =>
+                        handleUpdate(scene.id, "voiceRefUrl", e.target.value || undefined)
+                      }
+                      placeholder="https://example.com/voice-sample.mp3"
+                      onFocus={() => setActiveScene(scene.id)}
+                    />
+                  </div>
                 </>
               )}
             </div>

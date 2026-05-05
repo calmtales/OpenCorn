@@ -1,10 +1,17 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 
 const EXPORT_FORMATS = [
   { value: "mp4", label: "MP4 (H.264)" },
   { value: "webm", label: "WebM (VP9)" },
   { value: "mov", label: "MOV (ProRes)" },
 ] as const;
+
+interface ExportEntry {
+  id: string;
+  format: string;
+  url: string;
+  downloadedAt: string;
+}
 
 const styles = {
   container: {
@@ -69,6 +76,29 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
   },
+  historySection: {
+    borderTop: "1px solid var(--border)",
+    marginTop: 6,
+    paddingTop: 6,
+  },
+  historyLabel: {
+    fontSize: 9,
+    fontWeight: 600,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.06em",
+    color: "var(--text-muted)",
+    padding: "4px 8px 2px",
+  },
+  historyItem: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "4px 8px",
+    fontSize: 10,
+    color: "var(--text-secondary)",
+    cursor: "pointer",
+    borderRadius: "var(--radius-sm)",
+  },
 };
 
 interface Props {
@@ -79,15 +109,27 @@ interface Props {
 export function ExportPanel({ videoUrl, disabled }: Props) {
   const [open, setOpen] = useState(false);
   const [format, setFormat] = useState<string>("mp4");
+  const [history, setHistory] = useState<ExportEntry[]>([]);
 
-  const handleDownload = () => {
+  const handleDownload = useCallback(() => {
     if (!videoUrl) return;
     const a = document.createElement("a");
     a.href = videoUrl;
     a.download = `opencorn-film.${format}`;
     a.click();
+
+    // Track in session history
+    setHistory((prev) => [
+      {
+        id: `exp-${Date.now()}`,
+        format,
+        url: videoUrl,
+        downloadedAt: new Date().toLocaleTimeString(),
+      },
+      ...prev.slice(0, 9), // keep last 10
+    ]);
     setOpen(false);
-  };
+  }, [videoUrl, format]);
 
   return (
     <div style={styles.container}>
@@ -130,6 +172,28 @@ export function ExportPanel({ videoUrl, disabled }: Props) {
           <button style={styles.downloadBtn} onClick={handleDownload}>
             Download .{format}
           </button>
+
+          {history.length > 0 && (
+            <div style={styles.historySection}>
+              <div style={styles.historyLabel}>Recent exports</div>
+              {history.map((entry) => (
+                <div
+                  key={entry.id}
+                  style={styles.historyItem}
+                  onClick={() => {
+                    const a = document.createElement("a");
+                    a.href = entry.url;
+                    a.download = `opencorn-film.${entry.format}`;
+                    a.click();
+                  }}
+                  title={`Re-download ${entry.format} from ${entry.downloadedAt}`}
+                >
+                  <span>.{entry.format}</span>
+                  <span style={{ opacity: 0.6 }}>{entry.downloadedAt}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
