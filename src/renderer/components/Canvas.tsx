@@ -92,6 +92,24 @@ const styles = {
   },
 };
 
+// Canvas-level keyframe animation injection
+if (typeof document !== "undefined" && !document.getElementById("canvas-animations")) {
+  const style = document.createElement("style");
+  style.id = "canvas-animations";
+  style.textContent = `
+    /* Eliminate any ReactFlow internal background gap (the "black strip") */
+    .react-flow { background: transparent !important; }
+    .react-flow__renderer { background: transparent !important; }
+    .react-flow__pane { cursor: grab; }
+    .react-flow__pane:active { cursor: grabbing; }
+    /* Smooth minimap transitions */
+    .react-flow__minimap { transition: opacity 0.2s ease; }
+    /* Ensure edge animations are smooth */
+    .react-flow__edge { transition: stroke 0.16s ease, stroke-width 0.16s ease; }
+  `;
+  document.head.appendChild(style);
+}
+
 function InnerCanvas() {
   const nodes = useStory((s) => s.nodes);
   const currentId = useStory((s) => s.currentId);
@@ -184,6 +202,7 @@ function InnerCanvas() {
       elementsSelectable
       multiSelectionKeyCode="Shift"
       fitView={false}
+      style={{ width: "100%", height: "100%", background: "transparent" }}
     >
       {/* MiniMap */}
       <Panel position="top-right" style={{ marginTop: 72 }}>

@@ -812,7 +812,7 @@ export default function App() {
         <BreadcrumbTrail />
 
         {/* Canvas body — full ReactFlow + overlays */}
-        <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        <div style={{ flex: 1, position: "relative", overflow: "hidden", minHeight: 0 }}>
           <ReactFlowProvider>
             <Canvas />
           </ReactFlowProvider>
