@@ -146,11 +146,12 @@ const s = {
 };
 
 interface Props {
+  onOpen: (workflowId: string) => void;
   onResume: (workflowId: string) => void;
   onDelete: (workflowId: string) => Promise<void>;
 }
 
-export function ProjectsDashboard({ onResume, onDelete }: Props) {
+export function ProjectsDashboard({ onOpen, onResume, onDelete }: Props) {
   const [loading, setLoading] = useState(true);
   const [projects, setProjects] = useState<WorkflowSummary[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -173,6 +174,10 @@ export function ProjectsDashboard({ onResume, onDelete }: Props) {
   useEffect(() => {
     void loadProjects();
   }, []);
+
+  const handleOpen = (workflowId: string) => {
+    onOpen(workflowId);
+  };
 
   const handleResume = (workflowId: string) => {
     onResume(workflowId);
@@ -228,7 +233,7 @@ export function ProjectsDashboard({ onResume, onDelete }: Props) {
                 <span>{new Date(project.createdAt).toLocaleDateString()}</span>
               </div>
               <div style={s.cardActions}>
-                <button type="button" style={s.btn("primary")} onClick={() => handleResume(project.workflowId)}>
+                <button type="button" style={s.btn("primary")} onClick={() => handleOpen(project.workflowId)}>
                   Open
                 </button>
                 <button

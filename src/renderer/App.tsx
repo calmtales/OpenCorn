@@ -427,6 +427,26 @@ export default function App() {
     [pipeline, toast],
   );
 
+  const handleHistoryOpen = useCallback(
+    async (workflowId: string) => {
+      try {
+        // Load storyboard into canvas without restarting pipeline
+        const rpc = (window as any).__electrobun_rpc;
+        const entry = await rpc?.request?.getStoryboard?.({ workflowId }).catch(() => null);
+        if (entry) {
+          lastLoadedStoryboardIdRef.current = entry.id;
+          useStory.getState().loadStoryboard(entry, entry.idea || workflowId);
+        } else {
+          // Fall back to resumeWorkflow if storyboard not in local store
+          await handleHistoryResume(workflowId);
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : `Failed to open ${workflowId}`);
+      }
+    },
+    [toast],
+  );
+
   const handleHistoryResume = useCallback(
     async (workflowId: string) => {
       try {
@@ -559,30 +579,102 @@ export default function App() {
             }}
           >
             <Logo />
-            <span style={styles.landingHint}>projects • start • resume</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button
+                style={styles.highContrastBtn(false)}
+                onClick={() => useStory.getState().navigateToProjects()}
+                title="Browse all projects"
+              >
+                Projects
+              </button>
+              <span style={styles.landingHint}>start • resume • create</span>
+            </div>
           </div>
 
           <div style={styles.landingShell}>
             <div style={styles.landingCard}>
               <div style={styles.landingHero}>
-                <div style={styles.logoText}>Projects</div>
+                <div style={styles.logoText}>Create</div>
                 <div style={styles.landingCopy}>
-                  See every saved workflow, open the last cut, or jump straight into a new project. This is the actual projects screen, not a dead seed-only landing.
+                  Describe your story idea and let the AI generate a branching narrative canvas with keyframes and video.
                 </div>
-                <div style={styles.landingHint}>use the cards on the right to resume work</div>
+                <div style={styles.landingHint}>enter a seed to begin</div>
               </div>
               <SeedInput onSubmit={handleLandingSubmit} />
             </div>
 
-            <div style={{ minHeight: 0, overflow: "auto" }}>
-              <ProjectsDashboard
-                onResume={handleHistoryResume}
-                onDelete={async (workflowId) => {
-                  const rpc = (window as any).__electrobun_rpc;
-                  await rpc?.request?.deleteWorkflow?.({ workflowId });
-                }}
-              />
+            <div style={styles.landingCard}>
+              <div style={styles.landingHero}>
+                <div style={styles.logoText}>Projects</div>
+                <div style={styles.landingCopy}>
+                  View all your saved workflows. Open, resume, or delete projects from a single dashboard.
+                </div>
+                <button
+                  style={{
+                    ...styles.highContrastBtn(false),
+                    marginTop: 12,
+                    alignSelf: "flex-start",
+                  }}
+                  onClick={() => useStory.getState().navigateToProjects()}
+                >
+                  Open Projects Dashboard →
+                </button>
+              </div>
             </div>
+          </div>
+
+          <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
+          {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+        </div>
+      </ErrorBoundary>
+    );
+  }
+
+  // ─── Projects dashboard ──────────────────────────────────────────────
+  if (mode === "projects") {
+    return (
+      <ErrorBoundary>
+        <div style={styles.app}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "12px 20px",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              background: "rgba(6,8,12,0.84)",
+              backdropFilter: "blur(12px)",
+            }}
+          >
+            <Logo />
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button
+                style={styles.highContrastBtn(false)}
+                onClick={() => useStory.getState().resetToLanding()}
+                title="Start a new project"
+              >
+                + New Project
+              </button>
+              <span style={styles.landingHint}>v{VERSION}</span>
+            </div>
+          </div>
+
+          <div
+            style={{
+              flex: 1,
+              overflow: "auto",
+              padding: 24,
+              background: "radial-gradient(circle at center, rgba(79,195,247,0.03), transparent 70%)",
+            }}
+          >
+            <ProjectsDashboard
+              onOpen={handleHistoryOpen}
+              onResume={handleHistoryResume}
+              onDelete={async (workflowId) => {
+                const rpc = (window as any).__electrobun_rpc;
+                await rpc?.request?.deleteWorkflow?.({ workflowId });
+              }}
+            />
           </div>
 
           <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
@@ -627,8 +719,8 @@ export default function App() {
                 cursor: "pointer",
                 transition: "all var(--duration-fast) var(--ease-out)",
               }}
-              onClick={() => useStory.getState().resetToLanding()}
-              title="Back to project start"
+              onClick={() => useStory.getState().navigateToProjects()}
+              title="Back to projects dashboard"
               aria-label="Back to projects"
             >
               ← projects

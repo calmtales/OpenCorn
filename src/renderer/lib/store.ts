@@ -17,7 +17,7 @@ import type { Storyboard } from "../../shared/types";
 import { canonPath, layoutTree } from "./layout";
 import { imageUrl, seedFromString } from "./image";
 
-type ViewMode = "landing" | "canvas";
+type ViewMode = "landing" | "canvas" | "projects";
 
 // ---- helpers ----------------------------------------------------------------
 
@@ -191,6 +191,7 @@ interface StoreState {
   // actions
   enterCanvas: (seed: string, industryMode?: IndustryMode) => void;
   resetToLanding: () => void;
+  navigateToProjects: () => void;
   setCurrent: (nodeId: string, decidedBy?: Decider, agentName?: string) => void;
   setSelected: (nodeId: string | null) => void;
   openInsertModal: (parentId: string, childId: string, mode?: "canon" | "what-if") => void;
@@ -437,6 +438,9 @@ export const useStory = create<StoreState>()((set, get) => {
           pendingAutoExpand: false,
         };
       }),
+
+    navigateToProjects: () =>
+      set({ mode: "projects" }),
 
     setCurrent: (nodeId, decidedBy = "human", agentName) =>
       set((s) => {
