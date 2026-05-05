@@ -689,6 +689,30 @@ export default function App() {
               videoUrl={pipeline.videoUrl}
               disabled={pipeline.stage !== "complete"}
             />
+            <button
+              style={styles.headerBtn()}
+              onClick={async () => {
+                const rpc = (window as any).__electrobun_rpc;
+                try {
+                  const result = await rpc?.request?.createSnapshot?.({ name: `snapshot-${Date.now()}` });
+                  if (result) {
+                    useStory.getState().addSnapshot({
+                      snapshotName: result.snapshotName,
+                      createdAt: result.createdAt,
+                      sceneCount: result.sceneCount,
+                      path: result.path,
+                    });
+                    toast.success(`Snapshot saved: ${result.snapshotName}`);
+                  }
+                } catch (err: any) {
+                  toast.error(err?.message ?? "Failed to create snapshot");
+                }
+              }}
+              title="Create snapshot of current screenplay"
+              aria-label="Create snapshot"
+            >
+              📸 Snapshot
+            </button>
           </div>
         </div>
 

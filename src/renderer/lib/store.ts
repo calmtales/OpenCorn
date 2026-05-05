@@ -179,6 +179,7 @@ interface StoreState {
   storybookEndpointId: string | null;
   renderJobs: RenderJob[];
   agents: AgentEvent[];
+  snapshots: { snapshotName: string; createdAt: string; sceneCount: number; path: string }[];
   industryMode: IndustryMode;
   characters: Record<string, string>;
   characterRefs: Record<string, string>;
@@ -247,6 +248,9 @@ interface StoreState {
   addRenderJob: (job: RenderJob) => void;
   updateRenderJob: (id: string, patch: Partial<RenderJob>) => void;
   removeRenderJob: (id: string) => void;
+
+  addSnapshot: (snap: { snapshotName: string; createdAt: string; sceneCount: number; path: string }) => void;
+  setSnapshots: (snaps: { snapshotName: string; createdAt: string; sceneCount: number; path: string }[]) => void;
 
   consumePendingAutoExpand: () => boolean;
 
@@ -366,6 +370,7 @@ export const useStory = create<StoreState>()((set, get) => {
     storybookEndpointId: null,
     renderJobs: [],
     agents: [],
+    snapshots: [],
     industryMode: "filmmaking",
     characters: {},
     characterRefs: {},
@@ -723,6 +728,11 @@ export const useStory = create<StoreState>()((set, get) => {
       set((s) => ({
         renderJobs: s.renderJobs.filter((j) => j.id !== id),
       })),
+
+    addSnapshot: (snap) =>
+      set((s) => ({ snapshots: [...s.snapshots, snap] })),
+
+    setSnapshots: (snaps) => set({ snapshots: snaps }),
   };
 });
 
