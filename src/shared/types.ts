@@ -49,6 +49,10 @@ export interface AppSettings {
   transitionType: TransitionType;
   characterVoiceRefUrl?: string;
   characterRefUrl?: string;
+  // Model routing
+  brainstormModel?: string;
+  writerModel?: string;
+  directorModel?: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -91,6 +95,7 @@ export interface Scene {
   cameraAngle?: CameraAngle;
   lightingMood?: LightingMood;
   characterRefUrl?: string;
+  voiceRefUrl?: string;
 }
 
 export interface Storyboard {
@@ -129,6 +134,13 @@ export interface Toast {
   duration?: number;
 }
 
+export interface Snapshot {
+  snapshot_name: string;
+  created_at: string;
+  scene_count: number;
+  path: string;
+}
+
 // RPC contract: Bun-side handlers (callable from renderer)
 // messages: payload types for messages this side *sends* to the webview
 export interface BunRPC {
@@ -149,6 +161,14 @@ export interface BunRPC {
       sceneId: string;
       updates: Partial<Scene>;
     }) => { success: boolean };
+    bulkUpdateScenes: (args: {
+      sceneIds: string[];
+      updates: Partial<Scene>;
+    }) => { success: boolean; updatedCount: number };
+    createSnapshot: (args: {
+      name?: string;
+    }) => { snapshotName: string; path: string; createdAt: string; sceneCount: number };
+    listSnapshots: () => { snapshots: Snapshot[]; count: number };
     getSettings: () => AppSettings;
     getMcpStatus: () => { connected: boolean };
     saveSettings: (args: { settings: AppSettings }) => { success: boolean };

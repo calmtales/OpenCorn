@@ -327,6 +327,50 @@ class McpClient {
     }
   }
 
+  async bulkUpdateScenes(
+    sceneIds: string[],
+    updates: Partial<Scene>,
+    workflowId?: string
+  ): Promise<{ success: boolean; updatedCount: number }> {
+    const result = await this.callTool("bulk_update_scenes", {
+      workflow_id: workflowId ?? "current",
+      scene_ids: sceneIds,
+      updates,
+    });
+    return {
+      success: result.success,
+      updatedCount: result.updated_count ?? sceneIds.length,
+    };
+  }
+
+  async createSnapshot(
+    workflowId: string,
+    name?: string
+  ): Promise<{ snapshotName: string; path: string; createdAt: string; sceneCount: number }> {
+    const result = await this.callTool("create_snapshot", {
+      workflow_id: workflowId,
+      ...(name ? { name } : {}),
+    });
+    return {
+      snapshotName: result.snapshot_name,
+      path: result.path,
+      createdAt: result.created_at,
+      sceneCount: result.scene_count,
+    };
+  }
+
+  async listSnapshots(
+    workflowId: string
+  ): Promise<{ snapshots: any[]; count: number }> {
+    const result = await this.callTool("list_snapshots", {
+      workflow_id: workflowId,
+    });
+    return {
+      snapshots: result.snapshots ?? [],
+      count: result.count ?? 0,
+    };
+  }
+
   private parseScreenplay(
     screenplay: any,
     workflowId: string,
@@ -415,6 +459,9 @@ interface AppRPCSchema extends ElectrobunRPCSchema {
       deleteWorkflow: { params: { workflowId: string }; response: { success: boolean } };
       resumeWorkflow: { params: { workflowId: string }; response: { workflowId: string; storyboard?: Storyboard; videoUrl?: string } };
       updateScene: { params: { workflowId: string; sceneId: string; updates: Partial<Scene> }; response: { success: boolean } };
+      bulkUpdateScenes: { params: { sceneIds: string[]; updates: Partial<Scene> }; response: { success: boolean; updatedCount: number } };
+      createSnapshot: { params: { name?: string }; response: { snapshotName: string; path: string; createdAt: string; sceneCount: number } };
+      listSnapshots: { params: undefined; response: { snapshots: any[]; count: number } };
       getSettings: { params: undefined; response: AppSettings };
       getMcpStatus: { params: undefined; response: { connected: boolean } };
       saveSettings: { params: { settings: AppSettings }; response: { success: boolean } };
@@ -594,12 +641,48 @@ rpc.setRequestHandler({
         s.id === sceneId ? { ...s, ...updates } : s
       );
     }
-    
+
     if (mcp.isConnected()) {
       await mcp.updateScene(workflowId, sceneId, updates);
     }
-    
+
     return { success: true };
+  },
+
+  bulkUpdateScenes: async ({ sceneIds, updates }: { sceneIds: string[]; updates: Partial<Scene> }) => {
+    // Find current workflow from store
+    const activeWorkflowId = Array.from(workflowStore.keys()).pop();
+    if (!activeWorkflowId) throw new Error("No active workflow");
+
+    // Update local storyboard
+    const entry = workflowStore.get(activeWorkflowId);
+    if (entry?.storyboard) {
+      entry.storyboard.scenes = entry.storyboard.scenes.map((s) =>
+        sceneIds.includes(s.id) ? { ...s, ...updates } : s
+      );
+    }
+
+    // Persist to MCP server
+    if (mcp.isConnected()) {
+      const result = await mcp.bulkUpdateScenes(sceneIds, updates, activeWorkflowId);
+      return result;
+    }
+
+    return { success: true, updatedCount: sceneIds.length };
+  },
+
+  createSnapshot: async ({ name }: { name?: string }) => {
+    const activeWorkflowId = Array.from(workflowStore.keys()).pop();
+    if (!activeWorkflowId) throw new Error("No active workflow");
+    if (!mcp.isConnected()) throw new Error("MCP not connected");
+    return mcp.createSnapshot(activeWorkflowId, name);
+  },
+
+  listSnapshots: async () => {
+    const activeWorkflowId = Array.from(workflowStore.keys()).pop();
+    if (!activeWorkflowId) throw new Error("No active workflow");
+    if (!mcp.isConnected()) throw new Error("MCP not connected");
+    return mcp.listSnapshots(activeWorkflowId);
   },
 
   getSettings: async () => {

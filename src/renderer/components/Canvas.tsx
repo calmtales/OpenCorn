@@ -3,7 +3,7 @@
  *  Ported for OpenCorn (inline CSS, no Tailwind, no framer-motion)
  *  ────────────────────────────────────────────────────────────────────── */
 
-import { useEffect, useCallback, useRef, useMemo } from "react";
+import { useEffect, useCallback, useRef, useMemo, useState } from "react";
 import {
   MiniMap,
   Panel,
@@ -20,6 +20,7 @@ import type { StoryNode } from "../lib/types";
 import { nodeTypes } from "./StoryNode";
 import { edgeTypes } from "./StoryEdge";
 import { nodeHeight, variantOf } from "../lib/layout";
+import { BulkActionPanel } from "./BulkActionPanel";
 
 function toReactFlow(
   nodes: Map<string, StoryNode>,
@@ -99,9 +100,10 @@ function InnerCanvas() {
   const canonPathArr = useStory(useShallow(selectCanonPath));
   const setSelected = useStory((s) => s.setSelected);
   const setCurrent = useStory((s) => s.setCurrent);
-  const { setCenter, fitView } = useReactFlow();
+  const { setCenter, fitView, getNodes } = useReactFlow();
   const hasFitRef = useRef(false);
   const lastCenteredIdRef = useRef<string | null>(null);
+  const selectedNodeIdsRef = useRef<string[]>([]);
 
   const canonSet = useMemo(() => new Set(canonPathArr), [canonPathArr]);
 
@@ -150,7 +152,18 @@ function InnerCanvas() {
     [setCurrent],
   );
 
+  // Track multi-selection for bulk actions
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  const onSelectionChange = useCallback(
+    ({ nodes: selNodes }: { nodes: Node[] }) => {
+      selectedNodeIdsRef.current = selNodes.map((n) => n.id);
+      setSelectedNodeIds(selNodes.map((n) => n.id));
+    },
+    [],
+  );
+
   return (
+    <>
     <ReactFlow
       nodes={rfNodes}
       edges={rfEdges}
@@ -158,16 +171,18 @@ function InnerCanvas() {
       edgeTypes={edgeTypes}
       onPaneClick={onPaneClick}
       onNodeClick={onNodeClick}
+      onSelectionChange={onSelectionChange}
       proOptions={{ hideAttribution: true }}
       minZoom={0.15}
       maxZoom={2}
       zoomOnScroll
       zoomOnPinch
       zoomOnDoubleClick={false}
-      selectionOnDrag={false}
+      selectionOnDrag
       nodesDraggable={false}
       nodesConnectable={false}
       elementsSelectable
+      multiSelectionKeyCode="Shift"
       fitView={false}
     >
       {/* MiniMap */}
@@ -217,6 +232,13 @@ function InnerCanvas() {
         </div>
       </Panel>
     </ReactFlow>
+    {selectedNodeIds.length > 1 && (
+      <BulkActionPanel
+        selectedIds={selectedNodeIds}
+        onClearSelection={() => setSelectedNodeIds([])}
+      />
+    )}
+    </>
   );
 }
 
