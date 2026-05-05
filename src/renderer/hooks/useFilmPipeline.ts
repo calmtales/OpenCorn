@@ -36,6 +36,7 @@ function getBunRpc() {
 export function useFilmPipeline() {
   const [state, setState] = useState<PipelineState>(INITIAL);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastStageRef = useRef<PipelineStage>("idle");
 
   // Stop polling on unmount
   useEffect(() => {
@@ -55,28 +56,10 @@ export function useFilmPipeline() {
       .catch(() => {});
   }, []);
 
-  // Smooth progress estimator during screenplay generation.
-  // Uses exponential decay so progress approaches but never reaches 100%,
-  // allowing real pipeline events to take over at any point.
-  useEffect(() => {
-    if (state.stage !== "generating_screenplay") return;
-    // Aim for ~85% over 30s, ~92% over 60s.  Real pipeline events override.
-    const startTime = Date.now();
-    const t = setInterval(() => {
-      setState((prev) => {
-        if (prev.stage !== "generating_screenplay") return prev;
-        const elapsed = (Date.now() - startTime) / 1000; // seconds
-        // Asymptotic curve: starts at 8, approaches ~95 as t→∞
-        // f(t) = 95 - 87 * e^(-0.04t)  →  8 at t=0,  86 at t=50s
-        const smoothProgress = Math.round(95 - 87 * Math.exp(-0.04 * elapsed));
-        return {
-          ...prev,
-          progress: Math.max(prev.progress, smoothProgress),
-        };
-      });
-    }, 800);
-    return () => clearInterval(t);
-  }, [state.stage]);
+  // NOTE: No local simulated progress estimator.
+  // All progress comes from real MCP pipeline events (onPipelineUpdate).
+  // The bun-side poller pushes checkpoint-derived progress every 2.5s,
+  // so the UI always reflects actual server state — no more "22% stuck" bug.
 
   // Listen for push events from Bun side
   useEffect(() => {
@@ -89,7 +72,7 @@ export function useFilmPipeline() {
         error: status.error ?? null,
       }));
 
-      // Fire toasts for stage transitions
+      // Fire toasts for stage transitions (only on first entry to stage)
       const stageMessages: Record<string, string> = {
         generating_screenplay: "Writing your screenplay...",
         generating_keyframes: "Rendering scene keyframes...",
@@ -97,7 +80,11 @@ export function useFilmPipeline() {
         stitching: "Stitching final render...",
         complete: "Film complete!",
       };
-      const msg = stageMessages[status.stage];
+
+      const isStageChange = status.stage !== lastStageRef.current;
+      lastStageRef.current = status.stage;
+
+      const msg = isStageChange ? stageMessages[status.stage] : undefined;
       if (msg) {
         window.dispatchEvent(
           new CustomEvent("toast", {
@@ -128,8 +115,7 @@ export function useFilmPipeline() {
       setState((prev) => ({
         ...prev,
         storyboard: e.detail as Storyboard,
-        stage: "generating_keyframes",
-        progress: 30,
+        // Don't override stage/progress here — let onPipelineUpdate drive it
       }));
       window.dispatchEvent(
         new CustomEvent("toast", {

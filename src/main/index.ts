@@ -425,17 +425,41 @@ class McpClient {
       return { stage: "idle", progress: 0, error: status.error };
     }
 
-    const stages = status.stages ?? status;
-    const screenplayDone = stages.screenplay ?? false;
-    const keyframesDone = stages.keyframes ?? false;
-    const videosDone = stages.videos ?? false;
-    const mergedDone = stages.merged ?? false;
+    // The checkpoint returns _complete booleans + progress dicts
+    const screenplayDone = status.screenplay_complete ?? false;
+    const keyframesDone = status.keyframes_complete ?? false;
+    const videosDone = status.videos_complete ?? false;
+    const hasMerged = !!status.merged_video_url;
 
-    if (mergedDone) return { stage: "complete", progress: 100 };
-    if (videosDone) return { stage: "stitching", progress: 90 };
-    if (keyframesDone) return { stage: "generating_video", progress: 70 };
-    if (screenplayDone) return { stage: "generating_keyframes", progress: 30 };
-    return { stage: "generating_screenplay", progress: 10 };
+    // Granular progress from per-scene checkpoints
+    const kfProgress = status.keyframes_progress ?? null;
+    const vidProgress = status.videos_progress ?? null;
+
+    if (hasMerged) return { stage: "complete", progress: 100 };
+    if (videosDone) return { stage: "stitching", progress: 95 };
+
+    // Video generation in progress — compute per-scene percentage
+    if (vidProgress && (vidProgress.completed_scenes ?? []).length > 0) {
+      const completed = (vidProgress.completed_scenes ?? []).length;
+      const total = vidProgress.total_scenes ?? 1;
+      // Video generation maps to 60–92% range
+      const scenePct = total > 0 ? Math.round((completed / total) * 32) : 0;
+      return { stage: "generating_video", progress: 60 + scenePct };
+    }
+
+    if (keyframesDone) return { stage: "generating_video", progress: 60 };
+
+    // Keyframe generation in progress — compute per-scene percentage
+    if (kfProgress && (kfProgress.completed_scenes ?? []).length > 0) {
+      const completed = (kfProgress.completed_scenes ?? []).length;
+      const total = kfProgress.total_scenes ?? 1;
+      // Keyframe generation maps to 25–55% range
+      const scenePct = total > 0 ? Math.round((completed / total) * 30) : 0;
+      return { stage: "generating_keyframes", progress: 25 + scenePct };
+    }
+
+    if (screenplayDone) return { stage: "generating_keyframes", progress: 25 };
+    return { stage: "generating_screenplay", progress: 8 };
   }
 
   disconnect() {
@@ -538,10 +562,29 @@ rpc.setRequestHandler({
 
     // Push pipeline stage update so UI transitions from "screenplay" to "keyframes"
     rpc.send("onPipelineUpdate", {
-      status: { stage: "generating_keyframes", progress: 30 },
+      status: { stage: "generating_keyframes", progress: 25 },
     });
 
+    // Background progress poller — pushes real checkpoint-derived progress
+    // to the renderer so the UI never shows stale numbers.
+    let progressPoller: ReturnType<typeof setInterval> | null = null;
+    const startProgressPoller = () => {
+      progressPoller = setInterval(async () => {
+        try {
+          const status = await mcp.getWorkflowStatus(workflowId);
+          rpc.send("onPipelineUpdate", { status });
+          if (status.stage === "complete" || status.error) {
+            if (progressPoller) clearInterval(progressPoller);
+            progressPoller = null;
+          }
+        } catch {
+          // poller failure is non-fatal; retry next tick
+        }
+      }, 2500);
+    };
+
     // Kick off full pipeline in background
+    startProgressPoller();
     mcp
       .runFullPipeline(idea, style, currentSettings, workflowId)
       .then((result) => {
@@ -552,17 +595,10 @@ rpc.setRequestHandler({
         const entry = workflowStore.get(workflowId);
         if (entry) entry.videoUrl = mergedUrl ?? firstVideo;
 
-        // Push intermediate stage updates
-        if (videos.length > 0) {
-          rpc.send("onPipelineUpdate", {
-            status: { stage: "generating_video", progress: 70 },
-          });
-        }
+        // Stop poller — pipeline is done
+        if (progressPoller) { clearInterval(progressPoller); progressPoller = null; }
 
         if (mergedUrl || firstVideo) {
-          rpc.send("onPipelineUpdate", {
-            status: { stage: "stitching", progress: 90 },
-          });
           rpc.send("onVideoReady", {
             videoUrl: mergedUrl ?? firstVideo,
           });
@@ -573,6 +609,7 @@ rpc.setRequestHandler({
       })
       .catch((err) => {
         console.error("Pipeline failed:", err);
+        if (progressPoller) { clearInterval(progressPoller); progressPoller = null; }
         rpc.send("onPipelineUpdate", {
           status: { stage: "idle", progress: 0, error: String(err) },
         });
