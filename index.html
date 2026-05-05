@@ -316,13 +316,24 @@
       }
 
       /* ReactFlow dark theme overrides */
-      .react-flow__background { display: none; }
-      /* Transparent renderer — eliminates the "black strip" gap */
-      .react-flow, .react-flow__renderer { background: transparent !important; }
+      .react-flow__background { display: none !important; }
+      /* Transparent renderer — eliminates the "black strip" gap completely */
+      .react-flow, .react-flow__renderer, .react-flow__pane {
+        background: transparent !important;
+      }
       .react-flow__minimap { background: rgba(10,13,18,0.96) !important; border: none !important; }
       .react-flow__minimap-mask { fill: rgba(10,13,18,0.82) !important; }
       .react-flow__controls { display: none; }
       .react-flow__edge-path { stroke-linecap: round; }
+
+      /* Prevent any layout gap from ReactFlow container */
+      .react-flow__viewport {
+        background: transparent !important;
+      }
+      /* Ensure SVG edges don't create phantom gaps */
+      .react-flow__edges {
+        background: transparent !important;
+      }
     </style>
   </head>
   <body>

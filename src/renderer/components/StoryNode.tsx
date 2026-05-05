@@ -15,7 +15,7 @@ import type { NodeMood, NodeTone, StoryNode as TStoryNode } from "../lib/types";
 import { useStory, modeLabels, modeStylePrefix } from "../lib/store";
 import { variantOf, COMPACT_RIBBON_Y, CHECKPOINT_HEIGHT, COMPACT_HEIGHT } from "../lib/layout";
 
-// Inject keyframe animations for weaving/generating states
+// Inject keyframe animations for weaving/generating states + CRT scanlines
 if (typeof document !== "undefined" && !document.getElementById("storynode-animations")) {
   const style = document.createElement("style");
   style.id = "storynode-animations";
@@ -31,6 +31,17 @@ if (typeof document !== "undefined" && !document.getElementById("storynode-anima
     @keyframes generatingGlow {
       0%, 100% { box-shadow: 0 0 12px rgba(79,195,247,0.3); }
       50% { box-shadow: 0 0 24px rgba(79,195,247,0.6); }
+    }
+    @keyframes crtFlicker {
+      0%, 100% { opacity: 0.12; }
+      20% { opacity: 0.18; }
+      40% { opacity: 0.08; }
+      60% { opacity: 0.15; }
+      80% { opacity: 0.1; }
+    }
+    @keyframes crtScroll {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
     }
   `;
   document.head.appendChild(style);
@@ -304,6 +315,31 @@ const sCheckpoint = {
     backgroundSize: "100% 200%",
     animation: "scanSweep 3s linear infinite",
   },
+  /** CRT scanline overlay — horizontal lines + rolling bar for generating/weaving state */
+  crtScanlines: {
+    position: "absolute" as const,
+    inset: 0,
+    pointerEvents: "none" as const,
+    zIndex: 10,
+    overflow: "hidden" as const,
+  },
+  crtLines: {
+    position: "absolute" as const,
+    inset: 0,
+    pointerEvents: "none" as const,
+    backgroundImage:
+      "repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(255,255,255,0.03) 1px, rgba(255,255,255,0.03) 2px)",
+    animation: "crtFlicker 4s ease-in-out infinite",
+  },
+  crtBar: {
+    position: "absolute" as const,
+    left: 0,
+    right: 0,
+    height: "40%",
+    pointerEvents: "none" as const,
+    background: "linear-gradient(180deg, transparent 0%, rgba(79,195,247,0.04) 40%, rgba(79,195,247,0.06) 50%, rgba(79,195,247,0.04) 60%, transparent 100%)",
+    animation: "crtScroll 5s linear infinite",
+  },
 } as const;
 
 // ---- helpers ----------------------------------------------------------------
@@ -457,7 +493,7 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
               "linear-gradient(180deg, rgba(10,13,18,0.12) 0%, transparent 45%, rgba(10,13,18,0.6) 100%)",
           }}
         />
-        {/* Weaving overlay — immersive generating state */}
+        {/* Weaving overlay — immersive generating state with CRT scanlines */}
         {node.status === "generating" && (
           <div
             style={{
@@ -467,6 +503,11 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
             }}
           >
             <div style={sCheckpoint.scanSweep} />
+            {/* CRT scanline overlay */}
+            <div style={sCheckpoint.crtScanlines}>
+              <div style={sCheckpoint.crtLines} />
+              <div style={sCheckpoint.crtBar} />
+            </div>
             <Lock size={12} style={{ opacity: 0.6 }} />
             <span style={sCheckpoint.weavingText}>
               {isShell ? "weaving…" : "imagining…"}
@@ -524,35 +565,41 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
         </div>
       </div>
 
-      {/* Provenance strip */}
+      {/* Provenance HUD strip */}
       {(node.decidedBy === "agent" || node.inserted) && (
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: 6,
             marginTop: 6,
-            padding: "0 4px",
+            padding: "2px 6px",
             fontFamily: "var(--font-mono)",
-            fontSize: 10.5,
+            fontSize: 9.5,
             textTransform: "uppercase" as const,
             letterSpacing: "0.24em",
-            color: "rgba(170,185,205,0.55)",
+            color: "rgba(170,185,205,0.45)",
+            borderTop: "1px solid rgba(255,255,255,0.04)",
           }}
         >
           {node.decidedBy === "agent" ? (
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Bot size={11} strokeWidth={2} style={{ color: "#4fc3f7" }} />
-              {node.decidedByAgent?.replace("hermes-", "") ?? "agent"}
+              <span style={{ color: "rgba(79,195,247,0.5)", letterSpacing: "0.3em", fontSize: 8.5 }}>AGENT</span>
+              <Bot size={10} strokeWidth={2} style={{ color: "#4fc3f7" }} />
+              <span style={{ color: "rgba(79,195,247,0.75)" }}>
+                {(node.decidedByAgent?.replace("hermes-", "") ?? "brainstorm").toUpperCase()}
+              </span>
             </span>
           ) : (
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <User size={11} strokeWidth={2} style={{ color: "#e9c16b" }} /> you
+              <span style={{ color: "rgba(233,193,107,0.5)", letterSpacing: "0.3em", fontSize: 8.5 }}>USER</span>
+              <User size={10} strokeWidth={2} style={{ color: "#e9c16b" }} />
+              <span style={{ color: "rgba(233,193,107,0.75)" }}>YOU</span>
             </span>
           )}
           {node.inserted && (
-            <span style={{ border: "1px solid rgba(255,255,255,0.08)", padding: "1px 6px" }}>
-              inserted
+            <span style={{ border: "1px solid rgba(255,255,255,0.06)", padding: "1px 5px", fontSize: 8, marginLeft: "auto" }}>
+              INS
             </span>
           )}
         </div>
@@ -666,7 +713,7 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
           />
           {isCurrent && <div style={sCheckpoint.scanLine} />}
 
-          {/* Weaving overlay — immersive generating state */}
+          {/* Weaving overlay — immersive generating state with CRT scanlines */}
           {node.status === "generating" && (
             <div
               style={{
@@ -680,6 +727,11 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
               }}
             >
               <div style={sCheckpoint.scanSweep} />
+              {/* CRT scanline overlay */}
+              <div style={sCheckpoint.crtScanlines}>
+                <div style={sCheckpoint.crtLines} />
+                <div style={sCheckpoint.crtBar} />
+              </div>
               <Lock size={14} style={{ opacity: 0.6 }} />
               <span style={sCheckpoint.weavingText}>
                 {isShell ? "weaving new beat…" : "agent imagining…"}
@@ -801,21 +853,31 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
         </div>
       )}
 
-      {/* Provenance */}
-      <div style={sCheckpoint.provenance}>
+      {/* Provenance HUD */}
+      <div style={{
+        ...sCheckpoint.provenance,
+        borderTop: "1px solid rgba(255,255,255,0.04)",
+        paddingTop: 8,
+        marginTop: 10,
+      }}>
         {node.decidedBy === "agent" ? (
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Bot size={12} strokeWidth={2} style={{ color: "#4fc3f7" }} />
-            {node.decidedByAgent?.replace("hermes-", "") ?? "agent"}
+            <span style={{ color: "rgba(79,195,247,0.5)", letterSpacing: "0.3em", fontSize: 9.5 }}>AGENT</span>
+            <Bot size={11} strokeWidth={2} style={{ color: "#4fc3f7" }} />
+            <span style={{ color: "rgba(79,195,247,0.75)" }}>
+              {(node.decidedByAgent?.replace("hermes-", "") ?? "brainstorm").toUpperCase()}
+            </span>
           </span>
         ) : (
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <User size={12} strokeWidth={2} style={{ color: "#e9c16b" }} /> you
+            <span style={{ color: "rgba(233,193,107,0.5)", letterSpacing: "0.3em", fontSize: 9.5 }}>USER</span>
+            <User size={11} strokeWidth={2} style={{ color: "#e9c16b" }} />
+            <span style={{ color: "rgba(233,193,107,0.75)" }}>YOU</span>
           </span>
         )}
         {node.inserted && (
-          <span style={{ border: "1px solid rgba(255,255,255,0.08)", padding: "1px 6px" }}>
-            inserted
+          <span style={{ border: "1px solid rgba(255,255,255,0.06)", padding: "1px 5px", fontSize: 8, marginLeft: "auto" }}>
+            INS
           </span>
         )}
       </div>
