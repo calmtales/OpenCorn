@@ -482,7 +482,24 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
             }}
           />
         )}
-        {!node.imageUrl && <div style={sCompact.shimmer} />}
+        {!node.imageUrl && (
+          <div style={{
+            ...sCompact.shimmer,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0 10px",
+            fontFamily: "var(--font-mono)",
+            fontSize: 9,
+            textTransform: "uppercase" as const,
+            letterSpacing: "0.18em",
+            color: "rgba(170,185,205,0.5)",
+            textAlign: "center" as const,
+            lineHeight: 1.4,
+          }}>
+            {(node.body || node.summary || node.title || "").slice(0, 80) || "No keyframe"}
+          </div>
+        )}
         {/* Vignette */}
         <div
           style={{
@@ -685,12 +702,50 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
         }}
       >
         <div style={sCheckpoint.imageInner}>
-          {!loaded && <div style={sCompact.shimmer} />}
+          {!loaded && !node.imageUrl && (
+            <div style={{
+              ...sCompact.shimmer,
+              display: "flex",
+              flexDirection: "column" as const,
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              padding: 20,
+            }}>
+              <span style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 9,
+                textTransform: "uppercase" as const,
+                letterSpacing: "0.28em",
+                color: "rgba(170,185,205,0.35)",
+              }}>
+                no keyframe
+              </span>
+              <span style={{
+                fontSize: 12,
+                lineHeight: 1.5,
+                color: "rgba(170,185,205,0.55)",
+                textAlign: "center" as const,
+                maxWidth: "90%",
+                display: "-webkit-box" as const,
+                WebkitBoxOrient: "vertical" as const,
+                WebkitLineClamp: 5,
+                overflow: "hidden",
+              }}>
+                {node.body || node.summary || node.title || ""}
+              </span>
+            </div>
+          )}
+          {!loaded && !!node.imageUrl && <div style={sCompact.shimmer} />}
           {node.imageUrl && (
             <img
               src={node.imageUrl}
               alt={node.title}
               onLoad={() => setLoaded(true)}
+              onError={(e) => {
+                // When image fails to load, show description text instead
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
               draggable={false}
               style={{
                 ...sCheckpoint.imageInner,

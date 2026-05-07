@@ -43,6 +43,14 @@ const STYLE_MAP: Record<FilmStyle, string> = {
   claymation: "PIXEL_ART",
 };
 
+// Reverse map: backend anime_style -> frontend FilmStyle (best guess)
+const REVERSE_STYLE_MAP: Record<string, FilmStyle> = {
+  ANIME: "anime",
+  THREE_D_ANIME: "cyberpunk",
+  STUDIO_GHIBLI: "ghibli",
+  PIXEL_ART: "stop-motion",
+};
+
 // MCP Client — connects to stoira-mcp server via stdio using JSON-RPC 2.0
 class McpClient {
   private proc: ReturnType<typeof Bun.spawn> | null = null;
@@ -300,12 +308,12 @@ class McpClient {
     const result = await this.callTool("list_workflows", {});
     return (result?.workflows ?? []).map((w: any) => ({
       workflowId: w.workflow_id ?? w.id,
-      title: w.title ?? "Untitled",
-      idea: w.idea ?? "",
-      style: (w.style ?? "anime") as FilmStyle,
+      title: w.title || "Untitled",
+      idea: w.idea || "",
+      style: (REVERSE_STYLE_MAP[w.style] ?? "anime") as FilmStyle,
       createdAt: w.created_at ?? new Date().toISOString(),
       status: w.status ?? "idle",
-      videoUrl: w.video_url,
+      videoUrl: w.video_url ?? w.merged_video_url,
       sceneCount: w.scene_count ?? 0,
     }));
   }

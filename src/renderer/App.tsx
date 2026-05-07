@@ -381,7 +381,8 @@ const PIPELINE_STAGE_LABELS: Record<string, string> = {
   complete: "Complete",
 };
 
-function pipelineStatusText(stage: string, progress: number): string | null {
+function pipelineStatusText(stage: string, progress: number, error?: string | null): string | null {
+  if (error) return `⚠ ${error.slice(0, 120)}`;
   if (stage === "idle") return null;
   const label = PIPELINE_STAGE_LABELS[stage] ?? stage;
   return `${label} ${progress}%`;
@@ -895,12 +896,12 @@ export default function App() {
             <span style={{ textTransform: "uppercase", opacity: 0.7 }}>
               {storyNodes.size} {modeLabels(industryMode).beat.toLowerCase()}s
             </span>
-            {pipelineStatusText(pipeline.stage, pipeline.progress) && (
+            {pipelineStatusText(pipeline.stage, pipeline.progress, pipeline.error) && (
               <span style={{
-                color: pipeline.stage === "complete" ? "#4caf50" : "var(--accent)",
+                color: pipeline.error ? "#e74c3c" : pipeline.stage === "complete" ? "#4caf50" : "var(--accent)",
                 fontWeight: 500,
               }}>
-                · {pipelineStatusText(pipeline.stage, pipeline.progress)}
+                · {pipelineStatusText(pipeline.stage, pipeline.progress, pipeline.error)}
               </span>
             )}
           </div>
