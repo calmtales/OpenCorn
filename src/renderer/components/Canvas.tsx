@@ -14,6 +14,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { Crosshair } from "lucide-react";
 import { useStory, selectCanonPath } from "../lib/store";
 import { useShallow } from "zustand/react/shallow";
 import type { StoryNode } from "../lib/types";
@@ -84,11 +85,12 @@ const styles = {
   },
   minimapLabel: {
     fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    fontWeight: 600,
+    fontSize: 11,
+    fontWeight: 700,
     textTransform: "uppercase" as const,
     letterSpacing: "0.34em",
     color: "#4fc3f7",
+    opacity: 0.8,
   },
 };
 
@@ -110,9 +112,10 @@ if (typeof document !== "undefined" && !document.getElementById("canvas-animatio
     /* Tactical dot grid background */
     .opencorn-canvas-wrap {
       background-image:
-        radial-gradient(circle, rgba(79,195,247,0.07) 1px, transparent 1px);
-      background-size: 28px 28px;
+        radial-gradient(circle, rgba(79,195,247,0.1) 1px, transparent 1px);
+      background-size: 32px 32px;
       background-position: 0 0;
+      background-color: #040507;
     }
   `;
   document.head.appendChild(style);
@@ -233,10 +236,10 @@ function InnerCanvas() {
                 const anchorX = cur.x + (isCheckpoint ? 156 : 136);
                 setCenter(anchorX, cur.y, { zoom: 1.0, duration: 600 });
               }}
-              style={styles.crosshairBtn}
+              style={{...styles.crosshairBtn, width: 28, height: 28}}
               title="Center on current beat"
             >
-              ⊕
+              <Crosshair size={14} strokeWidth={2.5} />
             </button>
             <span style={styles.minimapLabel}>mini map</span>
           </div>

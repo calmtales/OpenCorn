@@ -29,18 +29,24 @@ import { ExportPanel } from "./components/ExportPanel";
 import { HistoryPanel } from "./components/HistoryPanel";
 import { PromptCraft } from "./components/PromptCraft";
 import { ModeSelector } from "./components/ModeSelector";
+import {
+  AlertTriangle, Skull, Heart, Sparkles, Eye,
+  Lock, Check, ChevronRight, ArrowRight, X, Bot, User,
+  Circle, Square, Crosshair, Clapperboard, Palette, 
+  Landmark, Megaphone, Telescope, Video, Search, MoveRight, 
+  Sun, Zap, Flame, Snowflake, Moon, Sunrise, Flag, Camera, ToyBrick,
+  Library, History, Settings, Layers, Box, PenTool, Layout, Download,
+  FolderArchive, Plus, Activity
+} from "lucide-react";
 
 type SidePanel = "settings" | "history" | "promptcraft" | "presets" | null;
 
 const VERSION = "0.5.0";
 
-function Logo({ size = 22 }: { size?: number }) {
+function Logo({ size = 28 }: { size?: number }) {
   return (
     <div style={styles.logo}>
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="2" y="2" width="20" height="20" rx="4" fill="var(--accent)" />
-        <path d="M8 8L16 12L8 16V8Z" fill="var(--bg-primary)" />
-      </svg>
+      <Clapperboard size={size} color="var(--accent)" strokeWidth={2.5} style={{ filter: "drop-shadow(0 0 8px rgba(79,195,247,0.4))" }} />
       <span style={styles.logoText}>
         <span style={styles.logoAccent}>Open</span>Corn
       </span>
@@ -67,22 +73,20 @@ function HudNav({ current, onNewProject }: { current: "landing" | "projects"; on
       <Logo />
       <nav style={{ display: "flex", alignItems: "center", gap: 6 }} aria-label="Main navigation">
         <button
-          style={{
-            ...styles.navTab(current === "landing"),
-          }}
+          style={styles.navTab(current === "landing")}
           onClick={() => useStory.getState().resetToLanding()}
           aria-current={current === "landing" ? "page" : undefined}
         >
-          ○ New Studio
+          <Circle size={13} strokeWidth={2.5} />
+          New Studio
         </button>
         <button
-          style={{
-            ...styles.navTab(current === "projects"),
-          }}
+          style={styles.navTab(current === "projects")}
           onClick={() => useStory.getState().navigateToProjects()}
           aria-current={current === "projects" ? "page" : undefined}
         >
-          ◻ Archive
+          <Square size={13} strokeWidth={2.5} />
+          Archive
         </button>
         {onNewProject && current === "projects" && (
           <button
@@ -94,7 +98,8 @@ function HudNav({ current, onNewProject }: { current: "landing" | "projects"; on
             }}
             onClick={onNewProject}
           >
-            + New Project
+            <Plus size={13} strokeWidth={3} />
+            New Project
           </button>
         )}
       </nav>
@@ -128,9 +133,11 @@ const styles = {
     gap: 10,
   },
   logoText: {
-    fontSize: 17,
-    fontWeight: 700,
-    letterSpacing: "-0.03em",
+    fontSize: 20,
+    fontWeight: 800,
+    letterSpacing: "-0.04em",
+    textTransform: "uppercase" as const,
+    fontFamily: "var(--font-display)",
   },
   logoAccent: {
     color: "var(--accent)",
@@ -239,17 +246,21 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "5px 16px",
+    padding: "6px 16px",
     background: "var(--bg-tertiary)",
     borderTop: "1px solid var(--border-subtle)",
-    fontSize: 11,
     color: "var(--text-muted)",
     flexShrink: 0,
+    zIndex: 10,
   },
   stageLabel: {
     display: "flex",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
+    fontSize: 12,
+    fontWeight: 700,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.12em",
   },
   progressDot: {
     width: 5,
@@ -271,20 +282,26 @@ const styles = {
   shortcutsHint: {
     display: "flex",
     alignItems: "center",
-    gap: 12,
-    fontSize: 10,
+    gap: 16,
+    fontSize: 11,
+    fontWeight: 500,
+    fontFamily: "var(--font-mono)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.08em",
   },
   kbd: {
     display: "inline-flex",
     alignItems: "center",
     gap: 3,
-    padding: "1px 5px",
-    background: "var(--bg-elevated)",
-    border: "1px solid var(--border)",
-    borderRadius: 3,
-    fontSize: 9,
-    color: "var(--text-muted)",
+    padding: "2px 6px",
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 4,
+    fontSize: 10,
+    fontWeight: 700,
+    color: "#fff",
     fontFamily: "var(--font-mono)",
+    boxShadow: "0 2px 0 rgba(0,0,0,0.3)",
   },
   panelLoading: {
     display: "flex",
@@ -326,10 +343,11 @@ const styles = {
   landingHint: {
     marginTop: 12,
     fontFamily: "var(--font-mono)",
-    fontSize: 10,
+    fontSize: 11,
+    fontWeight: 700,
     textTransform: "uppercase" as const,
     letterSpacing: "0.22em",
-    color: "rgba(170,185,205,0.55)",
+    color: "rgba(170,185,205,0.4)",
   },
   highContrastBtn: (active: boolean) => ({
     display: "flex",
@@ -348,19 +366,20 @@ const styles = {
   navTab: (active: boolean) => ({
     display: "flex",
     alignItems: "center",
-    gap: 5,
-    padding: "6px 14px",
-    background: active ? "rgba(233,193,107,0.1)" : "transparent",
-    border: `1px solid ${active ? "rgba(233,193,107,0.4)" : "rgba(255,255,255,0.06)"}`,
-    borderRadius: 4,
-    color: active ? "#e9c16b" : "var(--text-secondary)",
-    fontSize: 11,
-    fontWeight: 600,
+    gap: 10,
+    padding: "10px 20px",
+    background: active ? "rgba(233,193,107,0.12)" : "rgba(10,13,18,0.5)",
+    border: `1.5px solid ${active ? "rgba(233,193,107,0.5)" : "rgba(255,255,255,0.08)"}`,
+    borderRadius: 8,
+    color: active ? "#e9c16b" : "rgba(170,185,205,0.6)",
+    fontSize: 12,
+    fontWeight: 700,
     fontFamily: "var(--font-mono)",
-    letterSpacing: "0.16em",
     textTransform: "uppercase" as const,
+    letterSpacing: "0.14em",
     cursor: "pointer",
-    transition: "all var(--duration-fast) var(--ease-out)",
+    transition: "all 0.16s ease",
+    boxShadow: active ? "0 4px 20px rgba(233,193,107,0.15)" : "none",
   }),
 };
 
@@ -386,6 +405,30 @@ function pipelineStatusText(stage: string, progress: number, error?: string | nu
   if (stage === "idle") return null;
   const label = PIPELINE_STAGE_LABELS[stage] ?? stage;
   return `${label} ${progress}%`;
+}
+
+function StatusBar({ stage, progress, error }: { stage: string; progress: number; error: string | null }) {
+  return (
+    <div style={styles.statusBar}>
+      <div style={styles.stageLabel}>
+        <Activity 
+          size={14} 
+          color={stage === "complete" ? "var(--success)" : "var(--accent)"} 
+          style={{ animation: stage !== "complete" && stage !== "idle" ? "pulse 2s infinite" : "none" }} 
+        />
+        {pipelineStatusText(stage, progress, error) || "System Ready"}
+      </div>
+      <div style={styles.shortcutsHint}>
+        <span style={styles.kbd}>SHIFT</span> + Click for multi-select
+        <span style={styles.kbd}>SPACE</span> to search
+        <span style={styles.kbd}>?</span> for shortcuts
+      </div>
+    </div>
+  );
+}
+
+function getBunRpc() {
+  return (window as any).__electrobun_rpc;
 }
 
 /** Breadcrumb trail: canon path from root → current beat, clickable. */
@@ -434,7 +477,7 @@ function BreadcrumbTrail() {
         return (
           <span key={nodeId} style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
             {idx > 0 && (
-              <span style={{ color: "rgba(170,185,205,0.25)", fontSize: 10, margin: "0 2px" }}>›</span>
+              <ChevronRight size={12} color="rgba(170,185,205,0.25)" style={{ margin: "0 2px" }} />
             )}
             <button
               type="button"
@@ -455,6 +498,12 @@ function BreadcrumbTrail() {
       })}
     </div>
   );
+}
+
+interface ExportProps {
+  workflowId: string | null;
+  videoUrl: string | null;
+  onSnapshot: () => Promise<void>;
 }
 
 export default function App() {
@@ -736,7 +785,8 @@ export default function App() {
               title="Back to projects dashboard"
               aria-label="Back to projects"
             >
-              ← Archive
+              <FolderArchive size={14} strokeWidth={2.5} />
+              Archive
             </button>
           </div>
 
@@ -748,56 +798,60 @@ export default function App() {
               aria-label="Open settings panel"
               aria-pressed={sidePanel === "settings"}
             >
-              ⚙ Settings
+              <Settings size={14} strokeWidth={2.5} />
+              Settings
             </button>
             <button
               style={styles.headerBtn(sidePanel === "history")}
               onClick={() => togglePanel("history")}
               title="History (Cmd+H)"
-              aria-label="Open workflow history"
+              aria-label="Open history panel"
               aria-pressed={sidePanel === "history"}
             >
-              🕐 History
+              <History size={14} strokeWidth={2.5} />
+              History
             </button>
             <button
               style={styles.headerBtn(sidePanel === "promptcraft")}
               onClick={() => togglePanel("promptcraft")}
-              title="PromptCraft (Cmd+P)"
+              title="Prompt Craft (Cmd+P)"
               aria-label="Open prompt editor"
               aria-pressed={sidePanel === "promptcraft"}
             >
-              📊 Craft
+              <PenTool size={14} strokeWidth={2.5} />
+              Craft
             </button>
             <button
               style={styles.headerBtn(sidePanel === "presets")}
               onClick={() => togglePanel("presets")}
-              title="Style Presets (Cmd+Shift+P)"
+              title="Style Presets (Cmd+S)"
               aria-label="Open style presets"
               aria-pressed={sidePanel === "presets"}
             >
-              🎨 Presets
+              <Layers size={14} strokeWidth={2.5} />
+              Styles
             </button>
           </nav>
 
           <div style={styles.headerRight}>
-            <ModeSelector />
+            <McpStatus connected={!!pipeline.workflowId} />
             <button
               style={styles.highContrastBtn(highContrast)}
-              onClick={() => setHighContrast((v) => !v)}
-              aria-label={highContrast ? "Disable high contrast mode" : "Enable high contrast mode"}
-              title="Toggle high contrast"
+              onClick={() => {
+                const next = !highContrast;
+                setHighContrast(next);
+                localStorage.setItem("opencorn-high-contrast", String(next));
+              }}
+              title="Toggle high contrast mode"
             >
-              HC
+              <Box size={14} strokeWidth={2.5} />
+              Contrast
             </button>
-            <McpStatus connected={!!pipeline.workflowId} />
             <ExportPanel
+              workflowId={pipeline.workflowId}
               videoUrl={pipeline.videoUrl}
-              disabled={pipeline.stage !== "complete"}
-            />
-            <button
-              style={styles.headerBtn()}
-              onClick={async () => {
-                const rpc = (window as any).__electrobun_rpc;
+              onSnapshot={async () => {
+                const rpc = getBunRpc();
                 try {
                   const result = await rpc?.request?.createSnapshot?.({ name: `snapshot-${Date.now()}` });
                   if (result) {
@@ -807,17 +861,13 @@ export default function App() {
                       sceneCount: result.sceneCount,
                       path: result.path,
                     });
-                    toast.success(`Snapshot saved: ${result.snapshotName}`);
+                    toast.success("Snapshot created");
                   }
-                } catch (err: any) {
-                  toast.error(err?.message ?? "Failed to create snapshot");
+                } catch (err) {
+                  toast.error("Failed to create snapshot");
                 }
               }}
-              title="Create snapshot of current screenplay"
-              aria-label="Create snapshot"
-            >
-              📸 Snapshot
-            </button>
+            />
           </div>
         </div>
 
@@ -860,58 +910,11 @@ export default function App() {
         </div>
 
         {/* Status bar — slim, non-intrusive canvas info */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "3px 16px",
-            background: "var(--bg-secondary)",
-            borderTop: "1px solid var(--border-subtle)",
-            fontSize: 10,
-            color: "var(--text-muted)",
-            fontFamily: "var(--font-mono)",
-            letterSpacing: "0.14em",
-            flexShrink: 0,
-          }}
-          role="status"
-          aria-live="polite"
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span
-              style={{
-                display: "inline-block",
-                width: 4,
-                height: 4,
-                borderRadius: "50%",
-                background: pipeline.stage === "complete" ? "#4caf50" : pipeline.stage === "idle" ? "#4fc3f7" : "#ff9800",
-                boxShadow: pipeline.stage === "idle"
-                  ? "0 0 5px rgba(79,195,247,0.35)"
-                  : pipeline.stage === "complete"
-                    ? "0 0 5px rgba(76,175,80,0.35)"
-                    : "0 0 5px rgba(255,152,0,0.35)",
-              }}
-              aria-hidden="true"
-            />
-            <span style={{ textTransform: "uppercase", opacity: 0.7 }}>
-              {storyNodes.size} {modeLabels(industryMode).beat.toLowerCase()}s
-            </span>
-            {pipelineStatusText(pipeline.stage, pipeline.progress, pipeline.error) && (
-              <span style={{
-                color: pipeline.error ? "#e74c3c" : pipeline.stage === "complete" ? "#4caf50" : "var(--accent)",
-                fontWeight: 500,
-              }}>
-                · {pipelineStatusText(pipeline.stage, pipeline.progress, pipeline.error)}
-              </span>
-            )}
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, opacity: 0.5 }}>
-            <span style={{ fontSize: 9 }}>
-              <span style={styles.kbd} aria-hidden="true">⌘/</span> shortcuts
-            </span>
-            <span style={{ fontSize: 9 }}>v{VERSION}</span>
-          </div>
-        </div>
+        <StatusBar 
+          stage={pipeline.stage} 
+          progress={pipeline.progress} 
+          error={pipeline.error} 
+        />
 
         <ToastContainer toasts={toast.toasts} onDismiss={toast.removeToast} />
         {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}

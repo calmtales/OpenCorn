@@ -3,9 +3,10 @@
  *  Noustiny-inspired, ported for OpenCorn (inline CSS, no Tailwind)
  *  ────────────────────────────────────────────────────────────────────── */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ComponentType } from "react";
 import { useStory, DEMO_SEED } from "../lib/store";
 import type { IndustryMode } from "../lib/types";
+import { Clapperboard, Palette, Landmark, Megaphone, Sparkles } from "lucide-react";
 
 const FILM_EXAMPLES = [
   {
@@ -69,11 +70,11 @@ const MODE_EXAMPLES: Record<IndustryMode, typeof FILM_EXAMPLES> = {
   advertising: ADS_EXAMPLES,
 };
 
-const INDUSTRY_OPTIONS: { value: IndustryMode; label: string; icon: string }[] = [
-  { value: "filmmaking", label: "Film", icon: "🎬" },
-  { value: "design", label: "Design", icon: "🎨" },
-  { value: "architecture", label: "Architecture", icon: "🏛" },
-  { value: "advertising", label: "Advertising", icon: "📢" },
+const INDUSTRY_OPTIONS: { value: IndustryMode; label: string; icon: ComponentType<any> }[] = [
+  { value: "filmmaking", label: "Film", icon: Clapperboard },
+  { value: "design", label: "Design", icon: Palette },
+  { value: "architecture", label: "Architecture", icon: Landmark },
+  { value: "advertising", label: "Advertising", icon: Megaphone },
 ];
 
 const styles = {
@@ -197,18 +198,20 @@ const styles = {
   exampleBtn: (active: boolean) => ({
     display: "flex",
     alignItems: "center",
-    gap: 8,
-    padding: "6px 12px",
-    border: `1px solid ${active ? "#4fc3f7" : "rgba(255,255,255,0.08)"}`,
-    background: active ? "rgba(79,195,247,0.08)" : "rgba(10,13,18,0.4)",
-    color: active ? "#4fc3f7" : "rgba(138,150,170,0.7)",
-    fontFamily: "var(--font-display)",
-    fontSize: 10,
+    gap: 10,
+    padding: "8px 16px",
+    border: `1.5px solid ${active ? "#4fc3f7" : "rgba(255,255,255,0.08)"}`,
+    background: active ? "rgba(79,195,247,0.12)" : "rgba(10,13,18,0.45)",
+    color: active ? "#4fc3f7" : "rgba(138,150,170,0.75)",
+    fontFamily: "var(--font-mono)",
+    fontSize: 11,
+    fontWeight: 700,
     textTransform: "uppercase" as const,
-    letterSpacing: "0.26em",
+    letterSpacing: "0.18em",
     cursor: "pointer",
-    boxShadow: active ? "0 0 14px rgba(79,195,247,0.28)" : "none",
-    transition: "all 0.15s ease",
+    boxShadow: active ? "0 4px 20px rgba(79,195,247,0.25)" : "none",
+    transition: "all 0.2s ease",
+    borderRadius: 6,
   }),
   industryRow: {
     display: "flex",
@@ -219,34 +222,38 @@ const styles = {
   industryBtn: (active: boolean) => ({
     display: "flex",
     alignItems: "center",
-    gap: 6,
-    padding: "6px 12px",
-    background: active ? "rgba(79,195,247,0.08)" : "transparent",
-    border: `1px solid ${active ? "#4fc3f7" : "rgba(255,255,255,0.08)"}`,
-    borderRadius: 4,
-    color: active ? "#4fc3f7" : "rgba(138,150,170,0.6)",
-    fontFamily: "var(--font-display)",
-    fontSize: 11,
-    fontWeight: active ? 600 : 400,
+    gap: 10,
+    padding: "10px 20px",
+    background: active ? "rgba(233,193,107,0.12)" : "rgba(10,13,18,0.5)",
+    border: `1.5px solid ${active ? "rgba(233,193,107,0.5)" : "rgba(255,255,255,0.08)"}`,
+    borderRadius: 8,
+    color: active ? "#e9c16b" : "rgba(170,185,205,0.6)",
+    fontSize: 12,
+    fontWeight: 700,
+    fontFamily: "var(--font-mono)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.14em",
     cursor: "pointer",
-    transition: "all 0.15s ease",
+    transition: "all 0.16s ease",
+    boxShadow: active ? "0 4px 20px rgba(233,193,107,0.15)" : "none",
   }),
   enterBtn: (disabled: boolean) => ({
     display: "flex",
     alignItems: "center",
     gap: 12,
-    padding: "14px 28px",
-    border: disabled ? "1px solid rgba(255,255,255,0.06)" : "1px solid #e9c16b",
+    padding: "16px 32px",
+    border: disabled ? "1.5px solid rgba(255,255,255,0.06)" : "1.5px solid #e9c16b",
     background: disabled ? "rgba(10,13,18,0.3)" : "rgba(233,193,107,0.08)",
     color: disabled ? "rgba(138,150,170,0.4)" : "#e9c16b",
-    fontFamily: "var(--font-display)",
-    fontSize: 13,
+    fontFamily: "var(--font-mono)",
+    fontSize: 14,
+    fontWeight: 800,
     textTransform: "uppercase" as const,
-    letterSpacing: "0.36em",
+    letterSpacing: "0.42em",
     cursor: disabled ? "not-allowed" : "pointer",
     boxShadow: disabled
       ? "none"
-      : "0 0 28px rgba(233,193,107,0.32), inset 0 0 0 1px rgba(233,193,107,0.18)",
+      : "0 0 32px rgba(233,193,107,0.35), inset 0 0 0 1px rgba(233,193,107,0.18)",
     transition: "all 0.2s ease",
     whiteSpace: "nowrap" as const,
     flexShrink: 0,
@@ -343,7 +350,8 @@ export function SeedInput({ onSubmit }: Props = {}) {
                 onClick={() => setText(ex.text)}
                 style={styles.exampleBtn(text.trim() === ex.text.trim())}
               >
-                ✦ {ex.label}
+                <Sparkles size={11} strokeWidth={2.5} />
+                {ex.label}
               </button>
             ))}
           </div>
@@ -362,17 +370,20 @@ export function SeedInput({ onSubmit }: Props = {}) {
             >
               mode:
             </span>
-            {INDUSTRY_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setIndustry(opt.value)}
-                style={styles.industryBtn(industry === opt.value)}
-              >
-                <span>{opt.icon}</span>
-                <span>{opt.label}</span>
-              </button>
-            ))}
+            {INDUSTRY_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setIndustry(opt.value)}
+                  style={styles.industryBtn(industry === opt.value)}
+                >
+                  <Icon size={14} strokeWidth={2.5} />
+                  <span>{opt.label}</span>
+                </button>
+              );
+            })}
           </div>
 
           {/* Enter button */}

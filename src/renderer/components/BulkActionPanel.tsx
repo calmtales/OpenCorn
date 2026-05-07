@@ -1,44 +1,55 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, type ComponentType } from "react";
 import { useStory } from "../lib/store";
 import type { CameraAngle, LightingMood } from "../../shared/types";
+import { 
+  Telescope, Video, Search, MoveRight, Clapperboard,
+  Sun, Zap, Flame, Snowflake, Moon, Sunrise, Sparkles, Camera, Palette, X
+} from "lucide-react";
 
-const CAMERA_ANGLES: { value: CameraAngle; label: string; icon: string }[] = [
-  { value: "wide", label: "Wide", icon: "🔭" },
-  { value: "medium", label: "Medium", icon: "🎥" },
-  { value: "close-up", label: "Close-up", icon: "🔍" },
-  { value: "tracking", label: "Tracking", icon: "🏃" },
-  { value: "dolly", label: "Dolly", icon: "🎬" },
+const CAMERA_ANGLES: { value: CameraAngle; label: string; icon: ComponentType<any> }[] = [
+  { value: "wide", label: "Wide", icon: Telescope },
+  { value: "medium", label: "Medium", icon: Video },
+  { value: "close-up", label: "Close-up", icon: Search },
+  { value: "tracking", label: "Tracking", icon: MoveRight },
+  { value: "dolly", label: "Dolly", icon: Clapperboard },
 ];
 
-const LIGHTING_MOODS: { value: LightingMood; label: string; icon: string }[] = [
-  { value: "natural", label: "Natural", icon: "☀️" },
-  { value: "dramatic", label: "Dramatic", icon: "⚡" },
-  { value: "warm", label: "Warm", icon: "🔥" },
-  { value: "cool", label: "Cool", icon: "❄️" },
-  { value: "noir", label: "Noir", icon: "🌑" },
-  { value: "golden-hour", label: "Golden", icon: "🌅" },
-  { value: "neon", label: "Neon", icon: "💜" },
+const LIGHTING_MOODS: { value: LightingMood; label: string; icon: ComponentType<any> }[] = [
+  { value: "natural", label: "Natural", icon: Sun },
+  { value: "dramatic", label: "Dramatic", icon: Zap },
+  { value: "warm", label: "Warm", icon: Flame },
+  { value: "cool", label: "Cool", icon: Snowflake },
+  { value: "noir", label: "Noir", icon: Moon },
+  { value: "golden-hour", label: "Golden", icon: Sunrise },
+  { value: "neon", label: "Neon", icon: Zap },
 ];
 
-const STYLES = ["anime", "realistic", "cinematic", "watercolor", "noir", "cyberpunk"];
+const STYLES: { value: string; label: string; icon: ComponentType<any> }[] = [
+  { value: "anime", label: "Anime", icon: Sparkles },
+  { value: "realistic", label: "Realistic", icon: Camera },
+  { value: "cinematic", label: "Cinematic", icon: Clapperboard },
+  { value: "watercolor", label: "Watercolor", icon: Palette },
+  { value: "noir", label: "Noir", icon: Moon },
+  { value: "cyberpunk", label: "Cyberpunk", icon: Zap },
+];
 
 const s = {
   panel: {
     position: "absolute" as const,
-    bottom: 16,
+    bottom: 24,
     left: "50%",
     transform: "translateX(-50%)",
-    background: "rgba(10,13,18,0.96)",
-    border: "1px solid rgba(255,255,255,0.1)",
-    borderRadius: "var(--radius-md)",
-    padding: "12px 16px",
+    background: "rgba(10,13,18,0.98)",
+    border: "2px solid rgba(255,255,255,0.12)",
+    borderRadius: 12,
+    padding: "20px 24px",
     display: "flex",
     flexDirection: "column" as const,
-    gap: 10,
-    boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
-    backdropFilter: "blur(12px)",
-    zIndex: 30,
-    minWidth: 360,
+    gap: 16,
+    boxShadow: "0 20px 60px rgba(0,0,0,0.8)",
+    backdropFilter: "blur(20px)",
+    zIndex: 100,
+    minWidth: 420,
   },
   header: {
     display: "flex",
@@ -46,15 +57,17 @@ const s = {
     justifyContent: "space-between",
   },
   title: {
-    fontSize: 12,
-    fontWeight: 600,
+    fontSize: 14,
+    fontWeight: 800,
     color: "var(--accent)",
-    letterSpacing: "0.02em",
+    letterSpacing: "0.06em",
+    textTransform: "uppercase" as const,
+    fontFamily: "var(--font-display)",
   },
   count: {
-    fontSize: 10,
+    fontSize: 11,
     color: "var(--text-muted)",
-    fontWeight: 500,
+    fontWeight: 600,
   },
   closeBtn: {
     background: "none",
@@ -70,11 +83,12 @@ const s = {
     gap: 4,
   },
   label: {
-    fontSize: 9,
-    fontWeight: 600,
+    fontSize: 12,
+    fontWeight: 800,
     textTransform: "uppercase" as const,
-    letterSpacing: "0.1em",
+    letterSpacing: "0.14em",
     color: "var(--text-muted)",
+    opacity: 0.8,
   },
   chipRow: {
     display: "flex",
@@ -82,29 +96,33 @@ const s = {
     gap: 4,
   },
   chip: (selected: boolean) => ({
-    padding: "4px 8px",
+    padding: "8px 16px",
     background: selected ? "var(--accent-muted)" : "var(--bg-tertiary)",
-    border: `1px solid ${selected ? "var(--accent)" : "var(--border)"}`,
-    borderRadius: 20,
+    border: `1.5px solid ${selected ? "var(--accent)" : "rgba(255,255,255,0.08)"}`,
+    borderRadius: 24,
     color: selected ? "var(--accent)" : "var(--text-secondary)",
-    fontSize: 10,
-    fontWeight: selected ? 600 : 400,
+    fontSize: 12,
+    fontWeight: selected ? 800 : 600,
     cursor: "pointer",
     display: "flex",
     alignItems: "center",
-    gap: 4,
+    gap: 8,
     whiteSpace: "nowrap" as const,
+    transition: "all 0.16s ease",
   }),
   applyBtn: {
-    padding: "7px 14px",
+    padding: "10px 20px",
     background: "var(--accent)",
     border: "none",
     borderRadius: "var(--radius-sm)",
     color: "#fff",
-    fontSize: 11,
-    fontWeight: 600,
+    fontSize: 12,
+    fontWeight: 700,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.08em",
     cursor: "pointer",
     alignSelf: "flex-end",
+    marginTop: 8,
   },
 };
 
@@ -155,9 +173,7 @@ export function BulkActionPanel({ selectedIds, onClearSelection }: Props) {
         <span style={s.title}>Bulk Actions</span>
         <span style={s.count}>{selectedIds.length} scenes selected</span>
         <button style={s.closeBtn} onClick={onClearSelection} aria-label="Close">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
+          <X size={16} strokeWidth={2.5} />
         </button>
       </div>
 
@@ -165,16 +181,19 @@ export function BulkActionPanel({ selectedIds, onClearSelection }: Props) {
       <div style={s.section}>
         <div style={s.label}>Camera Angle</div>
         <div style={s.chipRow}>
-          {CAMERA_ANGLES.map((cam) => (
-            <button
-              key={cam.value}
-              style={s.chip(cameraAngle === cam.value)}
-              onClick={() => setCameraAngle(cameraAngle === cam.value ? null : cam.value)}
-            >
-              <span>{cam.icon}</span>
-              {cam.label}
-            </button>
-          ))}
+          {CAMERA_ANGLES.map((cam) => {
+            const Icon = cam.icon;
+            return (
+              <button
+                key={cam.value}
+                style={s.chip(cameraAngle === cam.value)}
+                onClick={() => setCameraAngle(cameraAngle === cam.value ? null : cam.value)}
+              >
+                <Icon size={12} strokeWidth={2.5} />
+                {cam.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -182,16 +201,19 @@ export function BulkActionPanel({ selectedIds, onClearSelection }: Props) {
       <div style={s.section}>
         <div style={s.label}>Lighting Mood</div>
         <div style={s.chipRow}>
-          {LIGHTING_MOODS.map((mood) => (
-            <button
-              key={mood.value}
-              style={s.chip(lightingMood === mood.value)}
-              onClick={() => setLightingMood(lightingMood === mood.value ? null : mood.value)}
-            >
-              <span>{mood.icon}</span>
-              {mood.label}
-            </button>
-          ))}
+          {LIGHTING_MOODS.map((mood) => {
+            const Icon = mood.icon;
+            return (
+              <button
+                key={mood.value}
+                style={s.chip(lightingMood === mood.value)}
+                onClick={() => setLightingMood(lightingMood === mood.value ? null : mood.value)}
+              >
+                <Icon size={12} strokeWidth={2.5} />
+                {mood.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -199,15 +221,19 @@ export function BulkActionPanel({ selectedIds, onClearSelection }: Props) {
       <div style={s.section}>
         <div style={s.label}>Style</div>
         <div style={s.chipRow}>
-          {STYLES.map((st) => (
-            <button
-              key={st}
-              style={s.chip(style === st)}
-              onClick={() => setStyle(style === st ? null : st)}
-            >
-              {st}
-            </button>
-          ))}
+          {STYLES.map((st) => {
+            const Icon = st.icon;
+            return (
+              <button
+                key={st.value}
+                style={s.chip(style === st.value)}
+                onClick={() => setStyle(style === st.value ? null : st.value)}
+              >
+                <Icon size={12} strokeWidth={2.5} />
+                {st.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
