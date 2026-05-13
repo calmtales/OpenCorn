@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import type {
   AppSettings,
   FilmStyle,
+  WorkflowMode,
   VideoProvider,
   ImageProvider,
   AspectRatio,
@@ -18,6 +19,11 @@ const VIDEO_PROVIDERS: { value: VideoProvider; label: string }[] = [
   { value: "wan", label: "WAN" },
 ];
 
+const WORKFLOW_MODES: { value: WorkflowMode; label: string }[] = [
+  { value: "auto", label: "Auto (fully agentic)" },
+  { value: "approval", label: "Approval (stage-gated)" },
+];
+
 const TRANSITION_TYPES: { value: TransitionType; label: string }[] = [
   { value: "crossfade", label: "Crossfade" },
   { value: "fade", label: "Fade" },
@@ -28,7 +34,7 @@ const TRANSITION_TYPES: { value: TransitionType; label: string }[] = [
 const IMAGE_PROVIDERS: { value: ImageProvider; label: string }[] = [
   { value: "nano_banana", label: "Nano Banana" },
   { value: "seedream", label: "SeeDream" },
-  { value: "gemini", label: "Gemini" },
+  { value: "gemini", label: "Gemini (coming soon)" },
 ];
 
 const ASPECT_RATIOS: { value: AspectRatio; label: string }[] = [
@@ -218,25 +224,53 @@ interface Props {
 }
 
 export function SettingsPanel({ onClose, onSettingsChange }: Props) {
-  const [settings, setSettings] = useState<AppSettings>({ ...DEFAULT_SETTINGS });
+  const [settings, setSettings] = useState<AppSettings>({
+    ...DEFAULT_SETTINGS,
+  });
 
   useEffect(() => {
     const rpc = (window as any).__electrobun_rpc;
-    rpc?.request?.getSettings?.().then((s: AppSettings) => {
-      if (s) setSettings(s);
-    }).catch(() => {});
+    rpc?.request
+      ?.getSettings?.()
+      .then((s: AppSettings) => {
+        if (s) setSettings(s);
+      })
+      .catch(() => {});
   }, []);
 
-  const update = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
+  const update = <K extends keyof AppSettings>(
+    key: K,
+    value: AppSettings[K],
+  ) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const rpc = (window as any).__electrobun_rpc;
-    rpc?.request?.saveSettings?.({ settings }).catch(() => {});
-    onSettingsChange?.(settings);
-    window.dispatchEvent(new CustomEvent("toast", { detail: { id: "", type: "success", message: "Settings saved" } }));
-    onClose();
+    try {
+      const result = await rpc?.request?.saveSettings?.({ settings });
+      if (!result?.success) {
+        throw new Error("Save failed");
+      }
+
+      onSettingsChange?.(settings);
+      window.dispatchEvent(
+        new CustomEvent("toast", {
+          detail: { id: "", type: "success", message: "Settings saved" },
+        }),
+      );
+      onClose();
+    } catch {
+      window.dispatchEvent(
+        new CustomEvent("toast", {
+          detail: {
+            id: "",
+            type: "error",
+            message: "Failed to save settings",
+          },
+        }),
+      );
+    }
   };
 
   const handleReset = () => {
@@ -247,9 +281,18 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
     <div style={s.container}>
       <div style={s.header}>
         <span style={s.title}>Settings</span>
-        <button style={s.closeBtn} onClick={onClose} aria-label="Close settings">
+        <button
+          style={s.closeBtn}
+          onClick={onClose}
+          aria-label="Close settings"
+        >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path
+              d="M3 3l8 8M11 3l-8 8"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
           </svg>
         </button>
       </div>
@@ -266,16 +309,38 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
           />
         </div>
 
+        {/* Workflow Mode */}
+        <div style={s.section}>
+          <label style={s.label}>Workflow Mode</label>
+          <select
+            style={s.select}
+            value={settings.workflowMode}
+            onChange={(e) =>
+              update("workflowMode", e.target.value as WorkflowMode)
+            }
+          >
+            {WORKFLOW_MODES.map((mode) => (
+              <option key={mode.value} value={mode.value}>
+                {mode.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Video Provider */}
         <div style={s.section}>
           <label style={s.label}>Video Provider</label>
           <select
             style={s.select}
             value={settings.videoProvider}
-            onChange={(e) => update("videoProvider", e.target.value as VideoProvider)}
+            onChange={(e) =>
+              update("videoProvider", e.target.value as VideoProvider)
+            }
           >
             {VIDEO_PROVIDERS.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
             ))}
           </select>
         </div>
@@ -286,10 +351,14 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
           <select
             style={s.select}
             value={settings.imageProvider}
-            onChange={(e) => update("imageProvider", e.target.value as ImageProvider)}
+            onChange={(e) =>
+              update("imageProvider", e.target.value as ImageProvider)
+            }
           >
             {IMAGE_PROVIDERS.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
             ))}
           </select>
         </div>
@@ -300,23 +369,59 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
           <select
             style={s.select}
             value={settings.transitionType}
-            onChange={(e) => update("transitionType", e.target.value as TransitionType)}
+            onChange={(e) =>
+              update("transitionType", e.target.value as TransitionType)
+            }
           >
             {TRANSITION_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
             ))}
           </select>
         </div>
 
         {/* Audio & Subtitles */}
         <div style={s.row}>
-          <div style={{ ...s.halfField, flexDirection: "row", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => update("enableAudio", !settings.enableAudio)}>
-            <input type="checkbox" checked={settings.enableAudio} onChange={() => {}} style={{ cursor: "pointer" }} />
-            <label style={{ ...s.label, marginBottom: 0, cursor: "pointer" }}>Enable AI Audio</label>
+          <div
+            style={{
+              ...s.halfField,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              cursor: "pointer",
+            }}
+            onClick={() => update("enableAudio", !settings.enableAudio)}
+          >
+            <input
+              type="checkbox"
+              checked={settings.enableAudio}
+              onChange={() => {}}
+              style={{ cursor: "pointer" }}
+            />
+            <label style={{ ...s.label, marginBottom: 0, cursor: "pointer" }}>
+              Enable AI Audio
+            </label>
           </div>
-          <div style={{ ...s.halfField, flexDirection: "row", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => update("enableSubtitles", !settings.enableSubtitles)}>
-            <input type="checkbox" checked={settings.enableSubtitles} onChange={() => {}} style={{ cursor: "pointer" }} />
-            <label style={{ ...s.label, marginBottom: 0, cursor: "pointer" }}>Burn Subtitles</label>
+          <div
+            style={{
+              ...s.halfField,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              cursor: "pointer",
+            }}
+            onClick={() => update("enableSubtitles", !settings.enableSubtitles)}
+          >
+            <input
+              type="checkbox"
+              checked={settings.enableSubtitles}
+              onChange={() => {}}
+              style={{ cursor: "pointer" }}
+            />
+            <label style={{ ...s.label, marginBottom: 0, cursor: "pointer" }}>
+              Burn Subtitles
+            </label>
           </div>
         </div>
 
@@ -327,17 +432,23 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
             <select
               style={s.select}
               value={settings.aspectRatio}
-              onChange={(e) => update("aspectRatio", e.target.value as AspectRatio)}
+              onChange={(e) =>
+                update("aspectRatio", e.target.value as AspectRatio)
+              }
             >
               {ASPECT_RATIOS.map((r) => (
-                <option key={r.value} value={r.value}>{r.label}</option>
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
               ))}
             </select>
           </div>
           <div style={s.halfField}>
             <label style={s.label}>Scenes: {settings.sceneCount}</label>
             <div style={s.sliderRow}>
-              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>1</span>
+              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                1
+              </span>
               <input
                 type="range"
                 min={1}
@@ -346,7 +457,9 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
                 onChange={(e) => update("sceneCount", Number(e.target.value))}
                 style={s.slider}
               />
-              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>30</span>
+              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                30
+              </span>
               <span style={s.sliderValue}>{settings.sceneCount}</span>
             </div>
           </div>
@@ -376,10 +489,14 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
             <select
               style={s.select}
               value={settings.exportFormat}
-              onChange={(e) => update("exportFormat", e.target.value as ExportFormat)}
+              onChange={(e) =>
+                update("exportFormat", e.target.value as ExportFormat)
+              }
             >
               {EXPORT_FORMATS.map((f) => (
-                <option key={f.value} value={f.value}>{f.label}</option>
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
               ))}
             </select>
           </div>
@@ -388,21 +505,37 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
             <select
               style={s.select}
               value={settings.exportResolution}
-              onChange={(e) => update("exportResolution", e.target.value as ExportResolution)}
+              onChange={(e) =>
+                update("exportResolution", e.target.value as ExportResolution)
+              }
             >
               {RESOLUTIONS.map((r) => (
-                <option key={r.value} value={r.value}>{r.label}</option>
+                <option key={r.value} value={r.value}>
+                  {r.label}
+                </option>
               ))}
             </select>
           </div>
         </div>
 
         {/* Model Routing */}
-        <div style={{ ...s.section, borderTop: "1px solid var(--border-subtle)", paddingTop: 16 }}>
+        <div
+          style={{
+            ...s.section,
+            borderTop: "1px solid var(--border-subtle)",
+            paddingTop: 16,
+          }}
+        >
           <label style={{ ...s.label, fontSize: 11, color: "var(--accent)" }}>
             🧠 Model Routing
           </label>
-          <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 6 }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--text-muted)",
+              marginBottom: 6,
+            }}
+          >
             Override the default LLM model for each narrative agent
           </div>
           <div style={s.section}>
@@ -410,7 +543,9 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
             <input
               style={s.input}
               value={settings.brainstormModel ?? ""}
-              onChange={(e) => update("brainstormModel", e.target.value || undefined)}
+              onChange={(e) =>
+                update("brainstormModel", e.target.value || undefined)
+              }
               placeholder="Default (gemini-2.5-flash)"
             />
           </div>
@@ -419,7 +554,9 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
             <input
               style={s.input}
               value={settings.writerModel ?? ""}
-              onChange={(e) => update("writerModel", e.target.value || undefined)}
+              onChange={(e) =>
+                update("writerModel", e.target.value || undefined)
+              }
               placeholder="Default (gemini-2.5-flash)"
             />
           </div>
@@ -428,7 +565,9 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
             <input
               style={s.input}
               value={settings.directorModel ?? ""}
-              onChange={(e) => update("directorModel", e.target.value || undefined)}
+              onChange={(e) =>
+                update("directorModel", e.target.value || undefined)
+              }
               placeholder="Default (gemini-2.5-flash)"
             />
           </div>
@@ -436,8 +575,12 @@ export function SettingsPanel({ onClose, onSettingsChange }: Props) {
       </div>
 
       <div style={s.footer}>
-        <button style={s.resetBtn} onClick={handleReset}>Reset</button>
-        <button style={s.saveBtn} onClick={handleSave}>Save Settings</button>
+        <button style={s.resetBtn} onClick={handleReset}>
+          Reset
+        </button>
+        <button style={s.saveBtn} onClick={handleSave}>
+          Save Settings
+        </button>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 /*  ──────────────────────────────────────────────────────────────────────
  *  StoryEdge — Orthogonal 90° tactical connector
- *  Noustiny-style branching canvas: Golden Path, geometric buttons
+ *  Branching canvas edge: Golden Path, geometric buttons
  *  Inline CSS only — no Tailwind, no framer-motion
  *  ────────────────────────────────────────────────────────────────────── */
 
@@ -27,9 +27,9 @@ function orthogonalPath(
   if (Math.abs(ty - sy) < 1) return `M ${sx},${sy} L ${tx},${ty}`;
   return [
     `M ${sx},${sy}`,
-    `L ${spine},${sy}`,  // horizontal out from source
-    `L ${spine},${ty}`,  // vertical step
-    `L ${tx},${ty}`,     // horizontal into target
+    `L ${spine},${sy}`, // horizontal out from source
+    `L ${spine},${ty}`, // vertical step
+    `L ${tx},${ty}`, // horizontal into target
   ].join(" ");
 }
 
@@ -53,7 +53,8 @@ const styles = {
       ? "0 0 16px rgba(233,193,107,0.35), inset 0 1px 0 rgba(233,193,107,0.2)"
       : "0 0 12px rgba(79,195,247,0.25), inset 0 1px 0 rgba(79,195,247,0.12)",
     // Geometric tactical clip-path (arrow-right)
-    clipPath: "polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%)",
+    clipPath:
+      "polygon(6px 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 6px 100%, 0 50%)",
     transition: "all 0.18s ease",
     outline: "none",
     fontFamily: "var(--font-mono)",
@@ -72,12 +73,14 @@ const styles = {
     height: 30,
     padding: "0 12px",
     cursor: "pointer",
-    background: "linear-gradient(180deg, rgba(15,19,27,0.96), rgba(10,13,18,0.92))",
+    background:
+      "linear-gradient(180deg, rgba(15,19,27,0.96), rgba(10,13,18,0.92))",
     border: "1.5px solid rgba(233,193,107,0.45)",
     color: "rgba(233,193,107,0.85)",
     backdropFilter: "blur(6px)",
     // Geometric tactical clip-path (diamond)
-    clipPath: "polygon(0 0, 100% 0, calc(100% - 5px) 50%, 100% 100%, 0 100%, 5px 50%)",
+    clipPath:
+      "polygon(0 0, 100% 0, calc(100% - 5px) 50%, 100% 100%, 0 100%, 5px 50%)",
     transition: "all 0.18s ease",
     outline: "none",
     fontFamily: "var(--font-mono)",
@@ -97,11 +100,20 @@ const styles = {
 };
 
 export function StoryEdge({
-  source, target,
-  sourceX, sourceY, targetX, targetY,
-  data, markerEnd,
+  source,
+  target,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  data,
+  markerEnd,
 }: EdgeProps) {
-  const meta = (data ?? {}) as { canon?: boolean; explored?: boolean };
+  const meta = (data ?? {}) as {
+    canon?: boolean;
+    explored?: boolean;
+    active?: boolean;
+  };
   const path = orthogonalPath(sourceX, sourceY, targetX, targetY);
   const openInsertModal = useStory((s) => s.openInsertModal);
 
@@ -117,28 +129,52 @@ export function StoryEdge({
     return false;
   });
 
-  // Golden Path: canon edges get amber glow, highlighted edges get bright amber
-  const stroke = isHighlighted
-    ? "#e9c16b"
+  const appearance = isHighlighted
+    ? {
+        rail: "rgba(8,11,16,0.96)",
+        stroke: "#f1ca72",
+        width: 4,
+        dash: undefined,
+        filter:
+          "drop-shadow(0 0 8px rgba(233,193,107,0.7)) drop-shadow(0 0 16px rgba(233,193,107,0.3))",
+      }
     : meta.canon
-      ? "#e9c16b"  // Golden Path — amber for canon
-      : meta.explored
-        ? "#64748b"
-        : "rgba(100,116,139,0.35)";
-  const width = isHighlighted ? 2.8 : meta.canon ? 2.2 : meta.explored ? 1.3 : 1;
-  const dash = isHighlighted || meta.canon || meta.explored ? undefined : "4 4";
-  const filter = isHighlighted
-    ? "drop-shadow(0 0 8px rgba(233,193,107,0.7)) drop-shadow(0 0 16px rgba(233,193,107,0.3))"
-    : meta.canon
-      ? "drop-shadow(0 0 6px rgba(233,193,107,0.5)) drop-shadow(0 0 12px rgba(233,193,107,0.2))"
-      : undefined;
+      ? {
+          rail: "rgba(8,11,16,0.92)",
+          stroke: "#e9c16b",
+          width: 3.4,
+          dash: undefined,
+          filter:
+            "drop-shadow(0 0 6px rgba(233,193,107,0.5)) drop-shadow(0 0 12px rgba(233,193,107,0.2))",
+        }
+      : meta.active
+        ? {
+            rail: "rgba(8,11,16,0.9)",
+            stroke: "rgba(109,205,244,0.96)",
+            width: 3.1,
+            dash: undefined,
+            filter: "drop-shadow(0 0 10px rgba(79,195,247,0.22))",
+          }
+        : meta.explored
+          ? {
+              rail: "rgba(8,11,16,0.88)",
+              stroke: "rgba(138,160,187,0.92)",
+              width: 2.6,
+              dash: undefined,
+              filter: undefined,
+            }
+          : {
+              rail: "rgba(8,11,16,0.84)",
+              stroke: "rgba(111,190,238,0.88)",
+              width: 2.4,
+              dash: "6 4",
+              filter: undefined,
+            };
 
   // Button positions
   const spine = computeSpine(sourceX, targetX);
   const mx = (spine + RADIUS + targetX) / 2;
   const my = targetY;
-  const tx = (sourceX + (spine - RADIUS)) / 2;
-  const ty = sourceY;
 
   return (
     <>
@@ -146,17 +182,34 @@ export function StoryEdge({
         path={path}
         markerEnd={markerEnd}
         style={{
-          stroke,
-          strokeWidth: width,
-          strokeDasharray: dash,
+          stroke: appearance.rail,
+          strokeWidth: appearance.width + 2.4,
+          strokeDasharray: appearance.dash,
+          vectorEffect: "non-scaling-stroke",
           fill: "none",
-          filter,
-          transition: "stroke 0.16s ease, stroke-width 0.16s ease, filter 0.16s ease",
+          opacity: 0.95,
+          transition:
+            "stroke 0.16s ease, stroke-width 0.16s ease, opacity 0.16s ease",
+        }}
+      />
+
+      <BaseEdge
+        path={path}
+        markerEnd={markerEnd}
+        style={{
+          stroke: appearance.stroke,
+          strokeWidth: appearance.width,
+          strokeDasharray: appearance.dash,
+          vectorEffect: "non-scaling-stroke",
+          fill: "none",
+          filter: appearance.filter,
+          transition:
+            "stroke 0.16s ease, stroke-width 0.16s ease, filter 0.16s ease",
         }}
       />
 
       <EdgeLabelRenderer>
-        {/* SPLICE — tactical bracket button between parent/child */}
+        {/* Insert — tactical bracket button between parent/child */}
         <div
           style={{
             position: "absolute",
@@ -184,45 +237,10 @@ export function StoryEdge({
                 ? "0 0 14px rgba(233,193,107,0.25), inset 0 1px 0 rgba(233,193,107,0.15)"
                 : "0 0 12px rgba(79,195,247,0.25), inset 0 1px 0 rgba(79,195,247,0.15)";
             }}
-            title="Splice a moment between these two beats"
+            title="Insert a beat between these two nodes"
           >
             <Plus size={12} strokeWidth={2.8} />
-            <span style={styles.labelTag}>splice</span>
-          </button>
-        </div>
-
-        {/* FORK — tactical what-if sibling button */}
-        <div
-          style={{
-            position: "absolute",
-            transform: `translate(-50%, -50%) translate(${tx}px, ${ty}px)`,
-            zIndex: 49,
-            pointerEvents: "auto" as const,
-          }}
-        >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              openInsertModal(source, target, "what-if");
-            }}
-            style={styles.forkBtn}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = "rgba(233,193,107,0.8)";
-              e.currentTarget.style.color = "#e9c16b";
-              e.currentTarget.style.boxShadow = "0 0 18px rgba(233,193,107,0.35)";
-              e.currentTarget.style.transform = "scale(1.08)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "rgba(233,193,107,0.4)";
-              e.currentTarget.style.color = "rgba(233,193,107,0.7)";
-              e.currentTarget.style.boxShadow = "none";
-              e.currentTarget.style.transform = "scale(1)";
-            }}
-            title="Spawn a what-if fork on this branch"
-          >
-            <Plus size={11} strokeWidth={2.6} />
-            <span style={styles.labelTag}>fork</span>
+            <span style={styles.labelTag}>insert</span>
           </button>
         </div>
       </EdgeLabelRenderer>

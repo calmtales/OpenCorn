@@ -1,5 +1,5 @@
 /*  ──────────────────────────────────────────────────────────────────────
- *  Horizontal tree layout — Noustiny-style branching canvas
+ *  Horizontal tree layout for the branching canvas
  *  Ported for OpenCorn (inline CSS, no Tailwind)
  *  ────────────────────────────────────────────────────────────────────── */
 
@@ -9,16 +9,19 @@ import type { NodeVariant, StoryNode } from "./types";
 export const COL_WIDTH = 680;
 export const V_GAP = 34;
 
+export const STAGE_HEIGHT = 228;
 export const CHECKPOINT_HEIGHT = 320;
 export const COMPACT_HEIGHT = 132;
 /** Ribbon midline offset from compact card top. */
 export const COMPACT_RIBBON_Y = 80 + 4 + 19;
+export const STAGE_WIDTH = 560;
 export const CHECKPOINT_WIDTH = 480;
 export const COMPACT_WIDTH = 272;
 
 export function variantOf(
-  n: Pick<StoryNode, "status" | "parentId" | "inserted">,
+  n: Pick<StoryNode, "status" | "parentId" | "inserted" | "kind">,
 ): NodeVariant {
+  if (n.kind === "writers-room-stage") return "stage";
   if (n.parentId === null) return "checkpoint";
   if (n.status === "generating" && n.inserted) return "compact";
   if (n.status === "current" || n.status === "generating") return "checkpoint";
@@ -26,22 +29,23 @@ export function variantOf(
 }
 
 export function nodeHeight(n: StoryNode): number {
-  return variantOf(n) === "checkpoint" ? CHECKPOINT_HEIGHT : COMPACT_HEIGHT;
+  const variant = variantOf(n);
+  if (variant === "stage") return STAGE_HEIGHT;
+  return variant === "checkpoint" ? CHECKPOINT_HEIGHT : COMPACT_HEIGHT;
 }
 
 export function nodeWidth(n: StoryNode): number {
-  return variantOf(n) === "checkpoint" ? CHECKPOINT_WIDTH : COMPACT_WIDTH;
+  const variant = variantOf(n);
+  if (variant === "stage") return STAGE_WIDTH;
+  return variant === "checkpoint" ? CHECKPOINT_WIDTH : COMPACT_WIDTH;
 }
 
 /** Reserve full checkpoint height so promoting any node never collides. */
-function reservedHeight(_n: StoryNode): number {
-  return CHECKPOINT_HEIGHT;
+function reservedHeight(n: StoryNode): number {
+  return variantOf(n) === "stage" ? STAGE_HEIGHT : CHECKPOINT_HEIGHT;
 }
 
-function subtreeHeight(
-  id: string,
-  nodes: Map<string, StoryNode>,
-): number {
+function subtreeHeight(id: string, nodes: Map<string, StoryNode>): number {
   const n = nodes.get(id);
   if (!n) return 0;
   const ownH = reservedHeight(n);

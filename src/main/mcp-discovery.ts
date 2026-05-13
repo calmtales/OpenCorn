@@ -13,11 +13,99 @@
  *   8.  /tmp/stoira-mcp            (legacy / CI fallback)
  */
 
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
+import { execFileSync } from "child_process";
 import { join, resolve, isAbsolute, dirname, parse } from "path";
 
 export const SERVER_SCRIPT = "stoira_mcp_server.py";
 const VENV_REL = ".venv/bin/python3";
+const OPENROUTER_ENV_FILE = "openrouter.env";
+const OPENROUTER_KEYCHAIN_SERVICE = "OpenCorn OpenRouter API Key";
+
+function normalizeSecret(value?: string | null): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function parseEnvValue(contents: string, key: string): string | undefined {
+  for (const rawLine of contents.split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const withoutExport = trimmed.startsWith("export ")
+      ? trimmed.slice("export ".length).trim()
+      : trimmed;
+    const eqIndex = withoutExport.indexOf("=");
+    if (eqIndex === -1) continue;
+
+    const parsedKey = withoutExport.slice(0, eqIndex).trim();
+    if (parsedKey !== key) continue;
+
+    let value = withoutExport.slice(eqIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    return normalizeSecret(value);
+  }
+
+  return undefined;
+}
+
+function openRouterSecretPaths(): string[] {
+  const home = process.env.HOME ?? "/home/ec2-user";
+  const paths: string[] = [];
+
+  if (process.env.OPENCOORN_OPENROUTER_ENV_FILE) {
+    paths.push(process.env.OPENCOORN_OPENROUTER_ENV_FILE);
+  }
+
+  paths.push(join(home, ".config", "opencorn", OPENROUTER_ENV_FILE));
+  paths.push(join(home, ".stoira", OPENROUTER_ENV_FILE));
+
+  return Array.from(new Set(paths));
+}
+
+function readOpenRouterKeyFromEnvFile(): string | undefined {
+  for (const path of openRouterSecretPaths()) {
+    if (!existsSync(path)) continue;
+    try {
+      const contents = readFileSync(path, "utf-8");
+      const value = parseEnvValue(contents, "OPENROUTER_API_KEY");
+      if (value) return value;
+    } catch {
+      // Ignore unreadable secret files and continue to the next local source.
+    }
+  }
+
+  return undefined;
+}
+
+function readOpenRouterKeyFromMacKeychain(): string | undefined {
+  if (process.platform !== "darwin") return undefined;
+
+  try {
+    return normalizeSecret(
+      execFileSync(
+        "security",
+        ["find-generic-password", "-w", "-s", OPENROUTER_KEYCHAIN_SERVICE],
+        { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] },
+      ),
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveOpenRouterApiKey(): string | undefined {
+  return (
+    normalizeSecret(process.env.OPENROUTER_API_KEY) ??
+    readOpenRouterKeyFromEnvFile() ??
+    readOpenRouterKeyFromMacKeychain()
+  );
+}
 
 /**
  * Walk up from `start` looking for a directory that contains `marker`.
@@ -29,7 +117,9 @@ export function findUpDir(start: string, marker: string): string | null {
   const { root } = parse(dir);
   while (true) {
     // Skip node_modules — we want the *project* root, not a dependency's
-    if (!dir.includes(`${process.platform === "win32" ? "\\" : "/"}node_modules`)) {
+    if (
+      !dir.includes(`${process.platform === "win32" ? "\\" : "/"}node_modules`)
+    ) {
       if (existsSync(join(dir, marker))) return dir;
     }
     const parent = dirname(dir);
@@ -119,9 +209,19 @@ export function buildMcpEnv(
   python: string,
   serverDir: string,
 ): Record<string, string> {
-  const env: Record<string, string> = { ...process.env } as Record<string, string>;
+  const env: Record<string, string> = { ...process.env } as Record<
+    string,
+    string
+  >;
   if (python.includes(".venv")) {
     env.VIRTUAL_ENV = join(serverDir, ".venv");
+  }
+  const openRouterApiKey = resolveOpenRouterApiKey();
+  if (openRouterApiKey) {
+    env.OPENROUTER_API_KEY = openRouterApiKey;
+  }
+  if (!env.OPENROUTER_MODEL) {
+    env.OPENROUTER_MODEL = "openrouter/free";
   }
   return env;
 }
@@ -133,23 +233,33 @@ export function buildMcpEnv(
  * @param serverDir  The resolved server directory.
  * @returns The argv array to pass to Bun.spawn / child_process.
  */
-export function buildMcpArgs(
-  serverUrl: string,
-  serverDir: string,
-): string[] {
+export function buildMcpArgs(serverUrl: string, serverDir: string): string[] {
   const python = resolvePython(serverDir);
+  const normalized = (serverUrl ?? "").trim();
 
-  if (serverUrl.startsWith("stdio://")) {
-    const script = serverUrl.slice("stdio://".length);
-    const scriptPath = isAbsolute(script)
-      ? script
-      : join(serverDir, script);
+  if (normalized.startsWith("stdio://")) {
+    const script = normalized.slice("stdio://".length);
+    const scriptPath = isAbsolute(script) ? script : join(serverDir, script);
     return [python, scriptPath, "--transport", "stdio"];
   }
 
-  // Fallback: treat the whole value as a path
-  const scriptPath = isAbsolute(serverUrl)
-    ? serverUrl
-    : join(serverDir, SERVER_SCRIPT);
+  if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+    throw new Error(
+      "HTTP/S MCP endpoints are not supported yet. Use stdio://<script> for now.",
+    );
+  }
+
+  if (!normalized) {
+    return [python, join(serverDir, SERVER_SCRIPT), "--transport", "stdio"];
+  }
+
+  if (normalized.includes("://")) {
+    throw new Error(`Unsupported MCP server URL scheme: ${normalized}`);
+  }
+
+  // Fallback: treat value as a script path (absolute or relative to serverDir)
+  const scriptPath = isAbsolute(normalized)
+    ? normalized
+    : join(serverDir, normalized);
   return [python, scriptPath, "--transport", "stdio"];
 }

@@ -7,6 +7,7 @@ const STATUS_COLORS: Record<string, string> = {
   generating_screenplay: "var(--accent)",
   generating_keyframes: "var(--accent)",
   generating_video: "var(--accent)",
+  waiting_approval: "var(--warning)",
   stitching: "var(--warning)",
   idle: "var(--text-muted)",
 };
@@ -162,7 +163,9 @@ export function ProjectsDashboard({ onOpen, onResume, onDelete }: Props) {
       const rpc = (window as any).__electrobun_rpc;
       const result = await rpc?.request?.listWorkflows?.();
       const items = (result?.workflows ?? []) as WorkflowSummary[];
-      items.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+      items.sort((a, b) =>
+        (b.createdAt || "").localeCompare(a.createdAt || ""),
+      );
       setProjects(items);
     } catch {
       setProjects([]);
@@ -188,6 +191,21 @@ export function ProjectsDashboard({ onOpen, onResume, onDelete }: Props) {
     try {
       await onDelete(workflowId);
       await loadProjects();
+      window.dispatchEvent(
+        new CustomEvent("toast", {
+          detail: { id: "", type: "success", message: "Workflow deleted" },
+        }),
+      );
+    } catch {
+      window.dispatchEvent(
+        new CustomEvent("toast", {
+          detail: {
+            id: "",
+            type: "error",
+            message: "Failed to delete workflow",
+          },
+        }),
+      );
     } finally {
       setBusyId(null);
     }
@@ -199,7 +217,9 @@ export function ProjectsDashboard({ onOpen, onResume, onDelete }: Props) {
         <div style={s.titleBlock}>
           <div style={s.kicker}>projects</div>
           <div style={s.title}>All workflows in one place</div>
-          <div style={s.meta}>{projects.length} saved project{projects.length === 1 ? "" : "s"}</div>
+          <div style={s.meta}>
+            {projects.length} saved project{projects.length === 1 ? "" : "s"}
+          </div>
         </div>
         <button
           type="button"
@@ -214,18 +234,50 @@ export function ProjectsDashboard({ onOpen, onResume, onDelete }: Props) {
         <HistoryListSkeleton />
       ) : projects.length === 0 ? (
         <div style={s.empty}>
-          No projects yet. Start a new one below, then it will appear here for quick resume.
+          No projects yet. Start a new one below, then it will appear here for
+          quick resume.
         </div>
       ) : (
         <div style={s.list}>
           {projects.map((project) => (
             <article key={project.workflowId} style={s.card}>
               <div style={s.cardTop}>
-                <span style={s.dot(STATUS_COLORS[project.status] ?? "var(--text-muted)")} />
+                <span
+                  style={s.dot(
+                    STATUS_COLORS[project.status] ?? "var(--text-muted)",
+                  )}
+                />
                 <div style={s.cardTitle}>{project.title}</div>
               </div>
-              <div style={s.cardBody}>{project.idea || "No idea text saved for this project."}</div>
+              <div style={s.cardBody}>
+                {project.idea || "No idea text saved for this project."}
+              </div>
               <div style={s.cardMeta}>
+                {project.productionLayer ? (
+                  <>
+                    <span>{project.productionLayer.replace(/-/g, " ")}</span>
+                    <span>·</span>
+                  </>
+                ) : null}
+                {project.industryMode &&
+                project.industryMode !== "filmmaking" ? (
+                  <>
+                    <span>{project.industryMode}</span>
+                    <span>·</span>
+                  </>
+                ) : null}
+                {project.writersRoomFormat ? (
+                  <>
+                    <span>{project.writersRoomFormat}</span>
+                    <span>·</span>
+                  </>
+                ) : null}
+                {project.writersRoomTier ? (
+                  <>
+                    <span>{project.writersRoomTier} pack</span>
+                    <span>·</span>
+                  </>
+                ) : null}
                 <span>{project.sceneCount} scenes</span>
                 <span>·</span>
                 <span>{project.status.replace(/_/g, " ")}</span>
@@ -233,7 +285,11 @@ export function ProjectsDashboard({ onOpen, onResume, onDelete }: Props) {
                 <span>{new Date(project.createdAt).toLocaleDateString()}</span>
               </div>
               <div style={s.cardActions}>
-                <button type="button" style={s.btn("primary")} onClick={() => handleOpen(project.workflowId)}>
+                <button
+                  type="button"
+                  style={s.btn("primary")}
+                  onClick={() => handleOpen(project.workflowId)}
+                >
                   Open
                 </button>
                 <button

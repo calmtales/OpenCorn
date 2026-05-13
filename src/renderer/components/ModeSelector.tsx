@@ -1,7 +1,7 @@
 /*  ──────────────────────────────────────────────────────────────────────
  *  ModeSelector — compact industry mode dropdown for the canvas header
  *  Lets the user switch mode mid-session without resetting the tree.
- *  Noustiny-style, inline CSS (no Tailwind)
+ *  Inline CSS only (no Tailwind)
  *  ────────────────────────────────────────────────────────────────────── */
 
 import { useState, useRef, useEffect } from "react";
@@ -102,7 +102,8 @@ export function ModeSelector() {
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -153,7 +154,9 @@ export function ModeSelector() {
                 <span style={styles.optionIcon}>{m.icon}</span>
                 <div style={styles.optionMeta}>
                   <span style={styles.optionLabel}>{m.label}</span>
-                  <span style={styles.optionDesc}>{mLabels.story} · {mLabels.beat}s</span>
+                  <span style={styles.optionDesc}>
+                    {mLabels.story} · {mLabels.beat}s
+                  </span>
                 </div>
               </button>
             );

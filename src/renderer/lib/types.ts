@@ -1,9 +1,14 @@
 /*  ──────────────────────────────────────────────────────────────────────
- *  Noustiny-style branching canvas types
+ *  Branching canvas types
  *  Ported for OpenCorn (Electrobun + React 19, inline CSS)
  *  ────────────────────────────────────────────────────────────────────── */
 
-export type NodeStatus = "current" | "canon" | "visited" | "unvisited" | "generating";
+export type NodeStatus =
+  | "current"
+  | "canon"
+  | "visited"
+  | "unvisited"
+  | "generating";
 
 export type NodeMood =
   | "neutral"
@@ -15,7 +20,8 @@ export type NodeMood =
   | "discovery";
 
 export type NodeTone = "canon" | "divergent" | "what-if";
-export type NodeVariant = "checkpoint" | "compact";
+export type NodeKind = "beat" | "writers-room-stage";
+export type NodeVariant = "checkpoint" | "compact" | "stage";
 export type StaleState = "fresh" | "stale" | "rewritten" | "unresolved";
 export type Decider = "human" | "agent";
 
@@ -31,7 +37,7 @@ export type AgentId =
   | "character-sheet"
   | "copyright-detector";
 
-export type IndustryMode = "filmmaking" | "design" | "architecture" | "advertising";
+export type IndustryMode = import("../../shared/types").IndustryMode;
 
 export interface StoryNode {
   id: string;
@@ -45,6 +51,7 @@ export interface StoryNode {
   imageUrl: string;
   mood: NodeMood;
   tone: NodeTone;
+  kind?: NodeKind;
   label?: string;
   question?: string;
   rawBrainstorm?: string;
@@ -85,6 +92,7 @@ export interface BranchSuggestion {
   imagePrompt: string;
   mood: NodeMood;
   tone: NodeTone;
+  kind?: NodeKind;
   label?: string;
 }
 

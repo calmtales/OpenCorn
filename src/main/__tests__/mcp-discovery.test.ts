@@ -15,7 +15,10 @@ const FIXTURE = join(import.meta.dir, "__fixtures__", "mcp-test");
 
 function setupFixture(dir: string) {
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, SERVER_SCRIPT), "#!/usr/bin/env python3\nprint('ok')\n");
+  writeFileSync(
+    join(dir, SERVER_SCRIPT),
+    "#!/usr/bin/env python3\nprint('ok')\n",
+  );
 }
 
 function cleanupFixture(dir: string) {
@@ -106,7 +109,10 @@ describe("mcp-discovery", () => {
       // import.meta.dir is …/OpenCorn-new/src/main → project root …/OpenCorn-new
       // parent of project root → …/ → sibling candidate = …/stoira-mcp
       // For /tmp/OpenCorn-new this resolves to /tmp/stoira-mcp (same as legacy)
-      const expectedSibling = join(dirname(dirname(dirname(import.meta.dir))), "stoira-mcp");
+      const expectedSibling = join(
+        dirname(dirname(dirname(import.meta.dir))),
+        "stoira-mcp",
+      );
       // Verify it appears in the list (may deduplicate with legacy /tmp/stoira-mcp)
       expect(dirs).toContain(expectedSibling);
     });
@@ -143,7 +149,8 @@ describe("mcp-discovery", () => {
   describe("findServerDir()", () => {
     it("returns null when no candidate contains the server script", () => {
       // Temporarily hide all real locations by setting override to a nonexistent path
-      process.env.OPENCOORN_MCP_SERVER_DIR = "/nonexistent/path/that/should/not/exist";
+      process.env.OPENCOORN_MCP_SERVER_DIR =
+        "/nonexistent/path/that/should/not/exist";
       const result = findServerDir();
       // If /tmp/stoira-mcp actually exists on this machine, that's fine —
       // the test just verifies the function doesn't crash and returns a string or null.
@@ -200,7 +207,9 @@ describe("mcp-discovery", () => {
       const venvDir = join(FIXTURE, ".venv", "bin");
       mkdirSync(venvDir, { recursive: true });
       writeFileSync(join(venvDir, "python3"), "#!/bin/sh\n");
-      expect(resolvePython(FIXTURE)).toBe(join(FIXTURE, ".venv", "bin", "python3"));
+      expect(resolvePython(FIXTURE)).toBe(
+        join(FIXTURE, ".venv", "bin", "python3"),
+      );
       cleanupFixture(FIXTURE);
     });
   });
@@ -218,14 +227,31 @@ describe("mcp-discovery", () => {
       expect(args).toContain("stdio");
     });
 
-    it("falls back to SERVER_SCRIPT for non-stdio URLs", () => {
-      const args = buildMcpArgs("tcp://localhost:8080", "/opt/mcp");
-      expect(args[1]).toBe(join("/opt/mcp", SERVER_SCRIPT));
+    it("throws for http URLs until SSE transport is implemented", () => {
+      expect(() =>
+        buildMcpArgs("http://127.0.0.1:8080/sse", "/opt/mcp"),
+      ).toThrow("HTTP/S MCP endpoints are not supported yet");
+    });
+
+    it("throws for unsupported URL schemes", () => {
+      expect(() => buildMcpArgs("tcp://localhost:8080", "/opt/mcp")).toThrow(
+        "Unsupported MCP server URL scheme",
+      );
     });
 
     it("respects absolute paths in stdio URL", () => {
       const args = buildMcpArgs("stdio:///abs/path/server.py", "/opt/mcp");
       expect(args[1]).toBe("/abs/path/server.py");
+    });
+
+    it("treats non-URL values as script paths", () => {
+      const args = buildMcpArgs("stoira_mcp_server.py", "/opt/mcp");
+      expect(args[1]).toBe(join("/opt/mcp", "stoira_mcp_server.py"));
+    });
+
+    it("falls back to default script when URL is empty", () => {
+      const args = buildMcpArgs("", "/opt/mcp");
+      expect(args[1]).toBe(join("/opt/mcp", SERVER_SCRIPT));
     });
   });
 
@@ -245,6 +271,34 @@ describe("mcp-discovery", () => {
       const env = buildMcpEnv("python3", "/mcp");
       expect(env.VIRTUAL_ENV).toBeUndefined();
       if (orig !== undefined) process.env.VIRTUAL_ENV = orig;
+    });
+
+    it("loads OPENROUTER_API_KEY from a local env file override", () => {
+      const secretFile = join(FIXTURE, "openrouter.env");
+      mkdirSync(FIXTURE, { recursive: true });
+      writeFileSync(
+        secretFile,
+        'OPENROUTER_API_KEY="sk-or-test-local-file"\nOPENROUTER_MODEL=openrouter/ignored\n',
+      );
+
+      delete process.env.OPENROUTER_API_KEY;
+      process.env.OPENCOORN_OPENROUTER_ENV_FILE = secretFile;
+
+      const env = buildMcpEnv("python3", "/mcp");
+      expect(env.OPENROUTER_API_KEY).toBe("sk-or-test-local-file");
+      expect(env.OPENROUTER_MODEL).toBe("openrouter/free");
+    });
+
+    it("leaves OPENROUTER_API_KEY unset when no secret source exists", () => {
+      delete process.env.OPENROUTER_API_KEY;
+      process.env.OPENCOORN_OPENROUTER_ENV_FILE = join(
+        FIXTURE,
+        "missing-openrouter.env",
+      );
+
+      const env = buildMcpEnv("python3", "/mcp");
+      expect(env.OPENROUTER_API_KEY).toBeUndefined();
+      expect(env.OPENROUTER_MODEL).toBe("openrouter/free");
     });
   });
 });

@@ -1,6 +1,6 @@
 /*  ──────────────────────────────────────────────────────────────────────
  *  AgentTicker — live agent activity panel
- *  Noustiny-style, ported for OpenCorn (inline CSS, no Tailwind)
+ *  OpenCorn live activity panel (inline CSS, no Tailwind)
  *  ────────────────────────────────────────────────────────────────────── */
 
 import { useEffect, useMemo, useState } from "react";
@@ -8,22 +8,36 @@ import { Cpu, Zap } from "lucide-react";
 import { useStory } from "../lib/store";
 import type { AgentId, AgentEvent } from "../lib/types";
 
+export interface SystemActivityCardData {
+  id: string;
+  label: string;
+  text: string;
+  accent: string;
+  status: "active" | "waiting" | "error" | "done";
+}
+
 const AGENT_LABEL: Record<string, { name: string; accent: string }> = {
-  brainstorm:        { name: "Brainstorm",      accent: "#4fc3f7" },
-  character:         { name: "Character",       accent: "#e9c16b" },
-  critic:            { name: "Critic",          accent: "#8a96aa" },
-  writer:            { name: "Writer",          accent: "#f7d27c" },
-  director:          { name: "Director",        accent: "#a78bfa" },
-  "writer-assist":   { name: "Writer-Assist",   accent: "#4fc3f7" },
-  "character-sheet": { name: "Cast Sheet",      accent: "#f472b6" },
-  judge:             { name: "Judge",           accent: "#ffd47a" },
-  "registry-lookup": { name: "Registry",        accent: "#5eead4" },
-  "copyright-detector": { name: "Copyright",    accent: "#5eead4" },
+  brainstorm: { name: "Brainstorm", accent: "#4fc3f7" },
+  character: { name: "Character", accent: "#e9c16b" },
+  critic: { name: "Critic", accent: "#8a96aa" },
+  writer: { name: "Writer", accent: "#f7d27c" },
+  director: { name: "Director", accent: "#a78bfa" },
+  "writer-assist": { name: "Writer-Assist", accent: "#4fc3f7" },
+  "character-sheet": { name: "Cast Sheet", accent: "#f472b6" },
+  judge: { name: "Judge", accent: "#ffd47a" },
+  "registry-lookup": { name: "Registry", accent: "#5eead4" },
+  "copyright-detector": { name: "Copyright", accent: "#5eead4" },
 };
 
 const NARRATIVE_AGENTS: Set<AgentId> = new Set<AgentId>([
-  "brainstorm", "writer", "writer-assist", "critic", "judge",
-  "director", "character-sheet", "character",
+  "brainstorm",
+  "writer",
+  "writer-assist",
+  "critic",
+  "judge",
+  "director",
+  "character-sheet",
+  "character",
 ]);
 
 const FADE_MS = 6000;
@@ -134,7 +148,11 @@ const styles = {
   },
 };
 
-export function AgentTicker() {
+export function AgentTicker({
+  systemActivities = [],
+}: {
+  systemActivities?: SystemActivityCardData[];
+}) {
   const agents = useStory((s) => s.agents);
   const [now, setNow] = useState(() => Date.now());
 
@@ -153,30 +171,91 @@ export function AgentTicker() {
       agents
         .filter((a) => NARRATIVE_AGENTS.has(a.agent))
         .filter((a) => {
-          if (a.status === "streaming" || a.status === "thinking" || a.status === "error") return true;
+          if (
+            a.status === "streaming" ||
+            a.status === "thinking" ||
+            a.status === "error"
+          )
+            return true;
           return now - a.startedAt < FADE_MS;
         })
         .slice(-MAX_VISIBLE),
     [agents, now],
   );
 
-  if (visible.length === 0) return null;
+  if (visible.length === 0 && systemActivities.length === 0) return null;
 
   return (
     <div style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
         <Cpu size={11} strokeWidth={1.6} />
-        agents · live
+        activity · live
       </div>
 
       {/* Cards */}
       <div style={styles.panel}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: 6 }}>
-          {visible.slice().reverse().map((a) => (
-            <AgentEventCard key={a.id} event={a} />
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            padding: 6,
+          }}
+        >
+          {systemActivities.map((activity) => (
+            <SystemActivityCard key={activity.id} activity={activity} />
           ))}
+          {visible
+            .slice()
+            .reverse()
+            .map((a) => (
+              <AgentEventCard key={a.id} event={a} />
+            ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SystemActivityCard({
+  activity,
+}: {
+  activity: SystemActivityCardData;
+}) {
+  const isActive =
+    activity.status === "active" || activity.status === "waiting";
+
+  return (
+    <div style={styles.card(activity.accent, isActive)}>
+      <div style={styles.cardHeader}>
+        <span style={{ color: activity.accent, fontWeight: 600 }}>
+          {activity.label}
+        </span>
+        <span style={{ marginLeft: "auto", color: activity.accent }}>
+          {activity.status}
+        </span>
+      </div>
+
+      {isActive && (
+        <div style={styles.progressBar(activity.accent)}>
+          <div style={styles.progressFill(activity.accent)} />
+        </div>
+      )}
+
+      <div style={styles.text}>
+        {activity.text}
+        {activity.status === "active" && (
+          <span
+            style={{
+              marginLeft: 6,
+              animation: "blink 1s step-end infinite",
+              color: activity.accent,
+            }}
+          >
+            ▌
+          </span>
+        )}
       </div>
     </div>
   );
@@ -197,12 +276,22 @@ function AgentEventCard({ event: a }: { event: AgentEvent }) {
         <span style={{ color: meta.accent, fontWeight: 600 }}>{meta.name}</span>
         <span style={{ color: "rgba(170,185,205,0.55)" }}>· {a.model}</span>
         {isActive && (
-          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, color: meta.accent }}>
+          <span
+            style={{
+              marginLeft: "auto",
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              color: meta.accent,
+            }}
+          >
             <Zap size={9} strokeWidth={2} /> {a.status}
           </span>
         )}
         {a.status === "done" && (
-          <span style={{ marginLeft: "auto", color: "rgba(170,185,205,0.55)" }}>done</span>
+          <span style={{ marginLeft: "auto", color: "rgba(170,185,205,0.55)" }}>
+            done
+          </span>
         )}
         {a.status === "error" && (
           <span style={{ marginLeft: "auto", color: "#e74c3c" }}>error</span>
@@ -238,7 +327,14 @@ function AgentEventCard({ event: a }: { event: AgentEvent }) {
           {a.status === "streaming" ? (
             <>
               {a.text}
-              <span style={{ animation: "blink 1s step-end infinite", color: meta.accent }}>▌</span>
+              <span
+                style={{
+                  animation: "blink 1s step-end infinite",
+                  color: meta.accent,
+                }}
+              >
+                ▌
+              </span>
             </>
           ) : (
             <>

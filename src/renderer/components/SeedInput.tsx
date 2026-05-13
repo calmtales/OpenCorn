@@ -1,12 +1,24 @@
 /*  ──────────────────────────────────────────────────────────────────────
  *  SeedInput — landing page with seed prompt + industry mode
- *  Noustiny-inspired, ported for OpenCorn (inline CSS, no Tailwind)
+ *  OpenCorn landing surface (inline CSS, no Tailwind)
  *  ────────────────────────────────────────────────────────────────────── */
 
 import { useState, useEffect, type ComponentType } from "react";
 import { useStory, DEMO_SEED } from "../lib/store";
 import type { IndustryMode } from "../lib/types";
-import { Clapperboard, Palette, Landmark, Megaphone, Sparkles } from "lucide-react";
+import type {
+  LayerStartOptions,
+  ProductionLayer,
+  WritersRoomFormat,
+  WritersRoomPackageTier,
+} from "../../shared/types";
+import {
+  Clapperboard,
+  Palette,
+  Landmark,
+  Megaphone,
+  Sparkles,
+} from "lucide-react";
 
 const FILM_EXAMPLES = [
   {
@@ -15,18 +27,15 @@ const FILM_EXAMPLES = [
   },
   {
     label: "Avatar — Aang wakes in the iceberg",
-    text:
-      "At the South Pole, Aang lies frozen inside a massive iceberg — unconscious, eyes closed, asleep for a hundred years. Katara and Sokka of the Southern Water Tribe discover him and call out through the ice.",
+    text: "At the South Pole, Aang lies frozen inside a massive iceberg — unconscious, eyes closed, asleep for a hundred years. Katara and Sokka of the Southern Water Tribe discover him and call out through the ice.",
   },
   {
     label: "Breaking Bad — the last phone call",
-    text:
-      "Walt stands at the payphone outside a New Hampshire diner. Every option he weighs in his head will end something. Which one does he choose to end?",
+    text: "Walt stands at the payphone outside a New Hampshire diner. Every option he weighs in his head will end something. Which one does he choose to end?",
   },
   {
     label: "Istanbul — the nameless hacker awakens",
-    text:
-      "A hacker wakes at the foot of the Galata Tower; a cybernetic implant sits beneath the skin of his arm, and he has no memory of the last three years. The time is 03:17.",
+    text: "A hacker wakes at the foot of the Galata Tower; a cybernetic implant sits beneath the skin of his arm, and he has no memory of the last three years. The time is 03:17.",
   },
 ];
 
@@ -70,11 +79,69 @@ const MODE_EXAMPLES: Record<IndustryMode, typeof FILM_EXAMPLES> = {
   advertising: ADS_EXAMPLES,
 };
 
-const INDUSTRY_OPTIONS: { value: IndustryMode; label: string; icon: ComponentType<any> }[] = [
+const INDUSTRY_OPTIONS: {
+  value: IndustryMode;
+  label: string;
+  icon: ComponentType<any>;
+}[] = [
   { value: "filmmaking", label: "Film", icon: Clapperboard },
   { value: "design", label: "Design", icon: Palette },
   { value: "architecture", label: "Architecture", icon: Landmark },
   { value: "advertising", label: "Advertising", icon: Megaphone },
+];
+
+const PRODUCTION_LAYERS: Array<{
+  value: ProductionLayer;
+  label: string;
+  detail: string;
+}> = [
+  {
+    value: "writers-room",
+    label: "Writers Room",
+    detail: "Premise, hooks, treatment, character and story signals",
+  },
+  {
+    value: "storyboard-previs",
+    label: "Storyboard + Previs",
+    detail: "Screenplay, boards, keyframes, scene timing",
+  },
+  {
+    value: "virtual-production",
+    label: "Virtual Production",
+    detail: "Shots, assets, references, production support",
+  },
+  {
+    value: "post-localization",
+    label: "Post + Localization",
+    detail: "Edit, audio, subtitles, versions, delivery notes",
+  },
+  {
+    value: "ip-franchise",
+    label: "IP + Franchise",
+    detail: "World bible, roadmap, spin-offs, canon guardrails",
+  },
+];
+
+const WRITERS_ROOM_FORMATS: Array<{
+  value: WritersRoomFormat;
+  label: string;
+}> = [
+  { value: "feature-film", label: "Feature Film" },
+  { value: "web-series", label: "Web Series" },
+  { value: "animation-anime", label: "Animation & Anime" },
+  { value: "ott-original", label: "OTT Original" },
+  { value: "franchise-ip", label: "Franchise & IP" },
+  { value: "ad-film", label: "Ad Film" },
+  { value: "docu-drama", label: "Docu-Drama" },
+];
+
+const WRITERS_ROOM_TIERS: Array<{
+  value: WritersRoomPackageTier;
+  label: string;
+}> = [
+  { value: "lite", label: "Lite" },
+  { value: "studio", label: "Studio" },
+  { value: "franchise", label: "Franchise" },
 ];
 
 const styles = {
@@ -219,6 +286,92 @@ const styles = {
     gap: 8,
     marginTop: 16,
   },
+  layerStack: {
+    display: "grid",
+    gridTemplateColumns: "repeat(5, minmax(118px, 1fr))",
+    gap: 8,
+    marginTop: 18,
+  },
+  layerBtn: (active: boolean) => ({
+    display: "flex",
+    flexDirection: "column" as const,
+    alignItems: "flex-start",
+    gap: 7,
+    minHeight: 112,
+    padding: 12,
+    background: active
+      ? "linear-gradient(180deg, rgba(232,93,38,0.2), rgba(232,93,38,0.08))"
+      : "rgba(10,13,18,0.55)",
+    border: `1.5px solid ${active ? "rgba(232,93,38,0.62)" : "rgba(255,255,255,0.08)"}`,
+    borderRadius: 8,
+    color: active ? "#ff8b58" : "rgba(170,185,205,0.72)",
+    cursor: "pointer",
+    textAlign: "left" as const,
+  }),
+  layerIndex: (active: boolean) => ({
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    border: `1px solid ${active ? "rgba(255,139,88,0.54)" : "rgba(255,255,255,0.1)"}`,
+    color: active ? "#ff8b58" : "rgba(170,185,205,0.55)",
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    fontWeight: 800,
+  }),
+  layerTitle: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    fontWeight: 800,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.12em",
+    lineHeight: 1.35,
+  },
+  layerDetail: {
+    fontSize: 11,
+    lineHeight: 1.45,
+    color: "rgba(170,185,205,0.62)",
+  },
+  writersControls: {
+    display: "grid",
+    gridTemplateColumns: "1.1fr 1fr",
+    gap: 10,
+    marginTop: 14,
+    padding: 12,
+    border: "1px solid rgba(255,255,255,0.07)",
+    borderRadius: 8,
+    background: "rgba(10,13,18,0.56)",
+  },
+  select: {
+    width: "100%",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 7,
+    background: "rgba(4,5,7,0.9)",
+    color: "rgba(230,236,244,0.9)",
+    padding: "9px 11px",
+    fontSize: 12,
+    outline: "none",
+  },
+  tierRow: {
+    display: "flex",
+    gap: 6,
+  },
+  tierBtn: (active: boolean) => ({
+    flex: 1,
+    minHeight: 36,
+    border: `1px solid ${active ? "rgba(233,193,107,0.48)" : "rgba(255,255,255,0.08)"}`,
+    borderRadius: 7,
+    background: active ? "rgba(233,193,107,0.13)" : "rgba(255,255,255,0.03)",
+    color: active ? "#e9c16b" : "rgba(170,185,205,0.7)",
+    cursor: "pointer",
+    fontFamily: "var(--font-mono)",
+    fontSize: 9,
+    fontWeight: 800,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase" as const,
+  }),
   industryBtn: (active: boolean) => ({
     display: "flex",
     alignItems: "center",
@@ -242,7 +395,9 @@ const styles = {
     alignItems: "center",
     gap: 12,
     padding: "16px 32px",
-    border: disabled ? "1.5px solid rgba(255,255,255,0.06)" : "1.5px solid #e9c16b",
+    border: disabled
+      ? "1.5px solid rgba(255,255,255,0.06)"
+      : "1.5px solid #e9c16b",
     background: disabled ? "rgba(10,13,18,0.3)" : "rgba(233,193,107,0.08)",
     color: disabled ? "rgba(138,150,170,0.4)" : "#e9c16b",
     fontFamily: "var(--font-mono)",
@@ -281,21 +436,44 @@ const MODE_PLACEHOLDERS: Record<IndustryMode, string> = {
 };
 
 interface Props {
-  onSubmit?: (seed: string, industry: IndustryMode) => void | Promise<void>;
+  onSubmit?: (
+    seed: string,
+    industry: IndustryMode,
+    productionLayer: ProductionLayer,
+    options: LayerStartOptions,
+  ) => void | Promise<void>;
 }
 
 export function SeedInput({ onSubmit }: Props = {}) {
   const [text, setText] = useState(DEMO_SEED);
   const [industry, setIndustry] = useState<IndustryMode>("filmmaking");
+  const [productionLayer, setProductionLayer] =
+    useState<ProductionLayer>("writers-room");
+  const [writersRoomFormat, setWritersRoomFormat] =
+    useState<WritersRoomFormat>("feature-film");
+  const [writersRoomTier, setWritersRoomTier] =
+    useState<WritersRoomPackageTier>("studio");
   const enterCanvas = useStory((s) => s.enterCanvas);
 
   const examples = MODE_EXAMPLES[industry];
+  const selectedLayer =
+    PRODUCTION_LAYERS.find((layer) => layer.value === productionLayer) ??
+    PRODUCTION_LAYERS[0];
+  const showWritersControls =
+    productionLayer === "writers-room" || productionLayer === "ip-franchise";
 
   // Animated subtitle rotation
   const [subtitleIdx, setSubtitleIdx] = useState(0);
-  const SUBTITLE_WORDS = ["Branching narrative engine", "Tactical story canvas", "AI story studio"];
+  const SUBTITLE_WORDS = [
+    "Studio development engine",
+    "Branching creative room",
+    "AI-assisted concept system",
+  ];
   useEffect(() => {
-    const t = setInterval(() => setSubtitleIdx((i) => (i + 1) % SUBTITLE_WORDS.length), 3200);
+    const t = setInterval(
+      () => setSubtitleIdx((i) => (i + 1) % SUBTITLE_WORDS.length),
+      3200,
+    );
     return () => clearInterval(t);
   }, []);
 
@@ -306,25 +484,96 @@ export function SeedInput({ onSubmit }: Props = {}) {
       {/* Top chrome */}
       <div style={styles.topBar}>
         <div style={styles.logo}>OpenCorn</div>
-        <div style={styles.topRight}>tactical narrative command</div>
+        <div style={styles.topRight}>creative development pipeline</div>
       </div>
 
       {/* Hero */}
       <div style={styles.hero}>
         <div style={styles.heroInner}>
           <div style={styles.subtitle}>
-            <span style={styles.subtitleLine} />
-            ✦ {SUBTITLE_WORDS[subtitleIdx]}
+            <span style={styles.subtitleLine} />✦ {SUBTITLE_WORDS[subtitleIdx]}
           </div>
           <h1 style={styles.h1}>
-            Every choice is a universe.<br />
-            <span style={styles.h1Accent}>What if…</span>
+            Start at any layer.
+            <br />
+            <span style={styles.h1Accent}>Keep the stack in order.</span>
           </h1>
           <p style={styles.description}>
-            Drop a scene, a memory, or a decision you can't stop rehearsing.
-            A council of AI agents will branch it into the lives it could
-            have been — and let you walk into any of them.
+            Drop a story, brand brief, spatial concept, or product idea. Start
+            from writers room, storyboard, virtual production, post, or IP, then
+            keep moving through the full stack.
           </p>
+
+          <div style={styles.layerStack} aria-label="Production layers">
+            {PRODUCTION_LAYERS.map((layer, index) => {
+              const active = productionLayer === layer.value;
+              return (
+                <button
+                  key={layer.value}
+                  type="button"
+                  style={styles.layerBtn(active)}
+                  onClick={() => {
+                    setProductionLayer(layer.value);
+                    if (layer.value === "ip-franchise") {
+                      setWritersRoomFormat("franchise-ip");
+                      setWritersRoomTier("franchise");
+                    } else if (layer.value === "writers-room") {
+                      setWritersRoomFormat((current) =>
+                        current === "franchise-ip" ? "feature-film" : current,
+                      );
+                      setWritersRoomTier((current) =>
+                        current === "franchise" ? "studio" : current,
+                      );
+                    }
+                  }}
+                >
+                  <span style={styles.layerIndex(active)}>{index + 1}</span>
+                  <span style={styles.layerTitle}>{layer.label}</span>
+                  <span style={styles.layerDetail}>{layer.detail}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {showWritersControls && (
+            <div style={styles.writersControls}>
+              <label
+                style={{ ...styles.textCardLabel, display: "grid", gap: 7 }}
+              >
+                format
+                <select
+                  style={styles.select}
+                  value={writersRoomFormat}
+                  onChange={(event) =>
+                    setWritersRoomFormat(
+                      event.target.value as WritersRoomFormat,
+                    )
+                  }
+                >
+                  {WRITERS_ROOM_FORMATS.map((format) => (
+                    <option key={format.value} value={format.value}>
+                      {format.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div style={{ ...styles.textCardLabel, display: "grid", gap: 7 }}>
+                package tier
+                <div style={styles.tierRow}>
+                  {WRITERS_ROOM_TIERS.map((tier) => (
+                    <button
+                      key={tier.value}
+                      type="button"
+                      style={styles.tierBtn(writersRoomTier === tier.value)}
+                      onClick={() => setWritersRoomTier(tier.value)}
+                    >
+                      {tier.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Seed textarea */}
           <div style={styles.textCard}>
@@ -342,7 +591,14 @@ export function SeedInput({ onSubmit }: Props = {}) {
           </div>
 
           {/* Example buttons */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 20 }}>
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 12,
+              marginTop: 20,
+            }}
+          >
             {examples.map((ex) => (
               <button
                 key={ex.label}
@@ -387,7 +643,14 @@ export function SeedInput({ onSubmit }: Props = {}) {
           </div>
 
           {/* Enter button */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 32 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginTop: 32,
+            }}
+          >
             <div
               style={{
                 display: "flex",
@@ -404,7 +667,10 @@ export function SeedInput({ onSubmit }: Props = {}) {
                 { label: "agent", color: "#e9c16b" },
                 { label: "canvas", color: "#4fc3f7" },
               ].map((s, i, arr) => (
-                <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div
+                  key={s.label}
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                >
                   <span
                     style={{
                       display: "flex",
@@ -430,7 +696,10 @@ export function SeedInput({ onSubmit }: Props = {}) {
               onClick={() => {
                 const seed = text.trim() || DEMO_SEED;
                 if (onSubmit) {
-                  void onSubmit(seed, industry);
+                  void onSubmit(seed, industry, productionLayer, {
+                    writersRoomFormat,
+                    writersRoomTier,
+                  });
                   return;
                 }
                 enterCanvas(seed, industry);
@@ -449,8 +718,16 @@ export function SeedInput({ onSubmit }: Props = {}) {
                   "0 0 28px rgba(233,193,107,0.32), inset 0 0 0 1px rgba(233,193,107,0.18)";
               }}
             >
-              Enter the divergence
-              <span style={{ fontSize: 15, display: "inline-block", animation: "arrowBounce 1.2s ease-in-out infinite" }}>→</span>
+              Start {selectedLayer.label}
+              <span
+                style={{
+                  fontSize: 15,
+                  display: "inline-block",
+                  animation: "arrowBounce 1.2s ease-in-out infinite",
+                }}
+              >
+                →
+              </span>
             </button>
           </div>
         </div>

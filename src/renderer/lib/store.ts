@@ -1,5 +1,5 @@
 /*  ──────────────────────────────────────────────────────────────────────
- *  Zustand store — Noustiny-style branching canvas state
+ *  Zustand store — branching canvas state
  *  Simplified for OpenCorn (stripped save/load, scenes, media library)
  *  ────────────────────────────────────────────────────────────────────── */
 
@@ -67,25 +67,53 @@ export const DEMO_SEED =
 // ---- mode-aware helpers (Phase 4) -------------------------------------------
 
 interface ModeLabels {
-  beat: string;       // e.g. "Scene", "Concept", "Space", "Moment"
-  canon: string;      // e.g. "Final cut", "Final layout", "Floor plan", "A-roll"
-  branch: string;     // e.g. "Alt. ending", "Variant", "Wing layout", "Creative route"
-  story: string;      // e.g. "Story", "Collection", "Building", "Campaign"
-  addVerb: string;    // e.g. "Add scene", "Add concept"
-  forkVerb: string;   // e.g. "Fork scene", "Fork concept"
+  beat: string; // e.g. "Scene", "Concept", "Space", "Moment"
+  canon: string; // e.g. "Final cut", "Final layout", "Floor plan", "A-roll"
+  branch: string; // e.g. "Alt. ending", "Variant", "Wing layout", "Creative route"
+  story: string; // e.g. "Story", "Collection", "Building", "Campaign"
+  addVerb: string; // e.g. "Add scene", "Add concept"
+  forkVerb: string; // e.g. "Fork scene", "Fork concept"
 }
 
 export function modeLabels(mode: IndustryMode): ModeLabels {
   switch (mode) {
     case "design":
-      return { beat: "Concept", canon: "Final layout", branch: "Variant", story: "Collection", addVerb: "Add concept", forkVerb: "Fork concept" };
+      return {
+        beat: "Concept",
+        canon: "Final layout",
+        branch: "Variant",
+        story: "Collection",
+        addVerb: "Add concept",
+        forkVerb: "Fork concept",
+      };
     case "architecture":
-      return { beat: "Space", canon: "Floor plan", branch: "Wing layout", story: "Building", addVerb: "Add space", forkVerb: "Fork space" };
+      return {
+        beat: "Space",
+        canon: "Floor plan",
+        branch: "Wing layout",
+        story: "Building",
+        addVerb: "Add space",
+        forkVerb: "Fork space",
+      };
     case "advertising":
-      return { beat: "Moment", canon: "A-roll", branch: "Creative route", story: "Campaign", addVerb: "Add moment", forkVerb: "Fork moment" };
+      return {
+        beat: "Moment",
+        canon: "A-roll",
+        branch: "Creative route",
+        story: "Campaign",
+        addVerb: "Add moment",
+        forkVerb: "Fork moment",
+      };
     case "filmmaking":
     default:
-      return { beat: "Scene", canon: "Final cut", branch: "Alt. ending", story: "Story", addVerb: "Add scene", forkVerb: "Fork scene" };
+      return {
+        beat: "Scene",
+        canon: "Final cut",
+        branch: "Alt. ending",
+        story: "Story",
+        addVerb: "Add scene",
+        forkVerb: "Fork scene",
+      };
   }
 }
 
@@ -104,7 +132,7 @@ export function modeStylePrefix(mode: IndustryMode): string {
 }
 
 export interface ModeRenderType {
-  format: string;      // e.g. "video storyboard", "layout mockup"
+  format: string; // e.g. "video storyboard", "layout mockup"
   aspectRatio: string; // e.g. "16:9", "4:3"
 }
 
@@ -169,9 +197,16 @@ interface InsertEdgeContext {
   mode?: "canon" | "what-if";
 }
 
+interface BranchFocusRequest {
+  token: string;
+  parentId: string;
+  childIds: string[];
+}
+
 interface StoreState {
   mode: ViewMode;
   seed: string;
+  workflowId: string | null;
   rootId: string;
   nodes: Map<string, StoryNode>;
   currentId: string;
@@ -179,8 +214,15 @@ interface StoreState {
   storybookEndpointId: string | null;
   renderJobs: RenderJob[];
   agents: AgentEvent[];
-  snapshots: { snapshotName: string; createdAt: string; sceneCount: number; path: string }[];
+  snapshots: {
+    snapshotName: string;
+    createdAt: string;
+    sceneCount: number;
+    path: string;
+  }[];
   industryMode: IndustryMode;
+  branchGeneratingNodeIds: string[];
+  branchFocusRequest: BranchFocusRequest | null;
   characters: Record<string, string>;
   characterRefs: Record<string, string>;
   mergeCharacters: (entries: Record<string, string>) => void;
@@ -194,14 +236,26 @@ interface StoreState {
   navigateToProjects: () => void;
   setCurrent: (nodeId: string, decidedBy?: Decider, agentName?: string) => void;
   setSelected: (nodeId: string | null) => void;
-  openInsertModal: (parentId: string, childId: string, mode?: "canon" | "what-if") => void;
+  openInsertModal: (
+    parentId: string,
+    childId: string,
+    mode?: "canon" | "what-if",
+  ) => void;
   closeInsertModal: () => void;
 
   addBranches: (
     parentId: string,
     branches: Omit<
       StoryNode,
-      "id" | "x" | "y" | "childrenIds" | "parentId" | "depth" | "status" | "decidedBy" | "staleState"
+      | "id"
+      | "x"
+      | "y"
+      | "childrenIds"
+      | "parentId"
+      | "depth"
+      | "status"
+      | "decidedBy"
+      | "staleState"
     >[],
     decidedBy?: Decider,
     agentName?: string,
@@ -250,12 +304,27 @@ interface StoreState {
   updateRenderJob: (id: string, patch: Partial<RenderJob>) => void;
   removeRenderJob: (id: string) => void;
 
-  addSnapshot: (snap: { snapshotName: string; createdAt: string; sceneCount: number; path: string }) => void;
-  setSnapshots: (snaps: { snapshotName: string; createdAt: string; sceneCount: number; path: string }[]) => void;
+  addSnapshot: (snap: {
+    snapshotName: string;
+    createdAt: string;
+    sceneCount: number;
+    path: string;
+  }) => void;
+  setSnapshots: (
+    snaps: {
+      snapshotName: string;
+      createdAt: string;
+      sceneCount: number;
+      path: string;
+    }[],
+  ) => void;
 
   consumePendingAutoExpand: () => boolean;
 
   setIndustryMode: (mode: IndustryMode) => void;
+  setWorkflowId: (workflowId: string | null) => void;
+  beginBranchGeneration: (nodeId: string) => void;
+  endBranchGeneration: (nodeId: string) => void;
   loadStoryboard: (
     storyboard: Storyboard,
     seed?: string,
@@ -265,7 +334,10 @@ interface StoreState {
 
 // ---- create store -----------------------------------------------------------
 
-function freshTree(seed: string): { nodes: Map<string, StoryNode>; rootId: string } {
+function freshTree(seed: string): {
+  nodes: Map<string, StoryNode>;
+  rootId: string;
+} {
   const map = buildRootTree(seed);
   layoutTree(map, "root");
   return { nodes: map, rootId: "root" };
@@ -294,7 +366,8 @@ function storyboardToTree(
   const nodes = new Map<string, StoryNode>();
   const scenes = storyboard.scenes.slice().sort((a, b) => a.order - b.order);
   const rootId = storyboard.id || "story-root";
-  const rootBody = storyboard.idea?.trim() || seed || storyboard.title || "Untitled story";
+  const rootBody =
+    storyboard.idea?.trim() || seed || storyboard.title || "Untitled story";
   const root: StoryNode = {
     id: rootId,
     parentId: null,
@@ -304,7 +377,10 @@ function storyboardToTree(
     summary: rootBody.slice(0, 180),
     body: rootBody,
     imagePrompt: rootBody.slice(0, 300),
-    imageUrl: imageUrl({ prompt: rootBody.slice(0, 300), seed: seedFromString(`${rootId}:${storyboard.title}`) }),
+    imageUrl: imageUrl({
+      prompt: rootBody.slice(0, 300),
+      seed: seedFromString(`${rootId}:${storyboard.title}`),
+    }),
     mood: "neutral",
     tone: "canon",
     status: scenes.length === 0 ? "current" : "canon",
@@ -320,8 +396,9 @@ function storyboardToTree(
     const id = scene.id || `${rootId}-scene-${index + 1}`;
     const title = scene.title?.trim() || `Scene ${index + 1}`;
     const body = sceneText(scene);
-    const prompt = scene.customPrompt?.trim() || scene.description?.trim() || body;
-    const imageUrlValue = scene.keyframes[0]?.imageUrl || imageUrl({ prompt, seed: seedFromString(`${id}:${title}`) });
+    const prompt =
+      scene.customPrompt?.trim() || scene.description?.trim() || body;
+    const imageUrlValue = scene.keyframes[0]?.imageUrl ?? "";
     const node: StoryNode = {
       id,
       parentId,
@@ -349,9 +426,10 @@ function storyboardToTree(
     parentId = id;
   });
 
-  const preferredCurrent = currentId && nodes.has(currentId)
-    ? currentId
-    : scenes[scenes.length - 1]?.id || rootId;
+  const preferredCurrent =
+    currentId && nodes.has(currentId)
+      ? currentId
+      : scenes[scenes.length - 1]?.id || rootId;
 
   const current = nodes.get(preferredCurrent);
   if (current) current.status = "current";
@@ -364,15 +442,18 @@ export const useStory = create<StoreState>()((set, get) => {
   return {
     mode: "landing",
     seed: DEMO_SEED,
+    workflowId: null,
     rootId: initial.rootId,
     nodes: initial.nodes,
     currentId: "root",
-    selectedId: null,
+    selectedId: "root",
     storybookEndpointId: null,
     renderJobs: [],
     agents: [],
     snapshots: [],
     industryMode: "filmmaking",
+    branchGeneratingNodeIds: [],
+    branchFocusRequest: null,
     characters: {},
     characterRefs: {},
     insertContext: null,
@@ -380,17 +461,37 @@ export const useStory = create<StoreState>()((set, get) => {
     pendingAutoExpand: false,
 
     setIndustryMode: (mode) => set({ industryMode: mode }),
+    setWorkflowId: (workflowId) => set({ workflowId }),
+    beginBranchGeneration: (nodeId) =>
+      set((s) => ({
+        branchGeneratingNodeIds: s.branchGeneratingNodeIds.includes(nodeId)
+          ? s.branchGeneratingNodeIds
+          : [...s.branchGeneratingNodeIds, nodeId],
+      })),
+    endBranchGeneration: (nodeId) =>
+      set((s) => ({
+        branchGeneratingNodeIds: s.branchGeneratingNodeIds.filter(
+          (id) => id !== nodeId,
+        ),
+      })),
 
     loadStoryboard: (storyboard, seed = get().seed, currentId) =>
       set((s) => {
-        const tree = storyboardToTree(storyboard, seed || s.seed, currentId ?? s.currentId);
+        const tree = storyboardToTree(
+          storyboard,
+          seed || s.seed,
+          currentId ?? s.currentId,
+        );
         return {
           mode: "canvas",
+          workflowId: storyboard.id,
           seed: storyboard.idea?.trim() || seed || s.seed,
           rootId: tree.rootId,
           nodes: tree.nodes,
           currentId: tree.currentId,
           selectedId: tree.currentId,
+          branchGeneratingNodeIds: [],
+          branchFocusRequest: null,
           pendingAutoExpand: false,
         };
       }),
@@ -404,16 +505,28 @@ export const useStory = create<StoreState>()((set, get) => {
     enterCanvas: (seed, industryMode) =>
       set((s) => {
         if (!seed.trim() || seed.trim() === s.seed) {
-          return { mode: "canvas", seed, ...(industryMode ? { industryMode } : {}) };
+          return {
+            mode: "canvas",
+            seed,
+            workflowId: null,
+            selectedId: s.currentId,
+            branchGeneratingNodeIds: [],
+            branchFocusRequest: null,
+            ...(industryMode ? { industryMode } : {}),
+          };
         }
         const fresh = freshTree(seed);
         return {
           mode: "canvas",
           seed,
+          workflowId: null,
           rootId: fresh.rootId,
           nodes: fresh.nodes,
           currentId: "root",
+          selectedId: "root",
           agents: [],
+          branchGeneratingNodeIds: [],
+          branchFocusRequest: null,
           characters: {},
           characterRefs: {},
           pendingAutoExpand: true,
@@ -426,6 +539,7 @@ export const useStory = create<StoreState>()((set, get) => {
         const fresh = freshTree(s.seed);
         return {
           mode: "landing",
+          workflowId: null,
           rootId: fresh.rootId,
           nodes: fresh.nodes,
           currentId: "root",
@@ -433,14 +547,15 @@ export const useStory = create<StoreState>()((set, get) => {
           storybookEndpointId: null,
           renderJobs: [],
           agents: [],
+          branchGeneratingNodeIds: [],
+          branchFocusRequest: null,
           characters: {},
           characterRefs: {},
           pendingAutoExpand: false,
         };
       }),
 
-    navigateToProjects: () =>
-      set({ mode: "projects" }),
+    navigateToProjects: () => set({ mode: "projects" }),
 
     setCurrent: (nodeId, decidedBy = "human", agentName) =>
       set((s) => {
@@ -470,7 +585,13 @@ export const useStory = create<StoreState>()((set, get) => {
 
     closeInsertModal: () => set({ insertContext: null }),
 
-    addBranches: (parentId, branches, decidedBy = "agent", agentName = "brainstorm", question) => {
+    addBranches: (
+      parentId,
+      branches,
+      decidedBy = "agent",
+      agentName = "brainstorm",
+      question,
+    ) => {
       const newIds: string[] = [];
       set((s) => {
         const parent = s.nodes.get(parentId);
@@ -493,11 +614,28 @@ export const useStory = create<StoreState>()((set, get) => {
           });
         });
         const patchedParent: StoryNode = question
-          ? { ...parent, childrenIds: [...parent.childrenIds, ...newIds], question }
+          ? {
+              ...parent,
+              childrenIds: [...parent.childrenIds, ...newIds],
+              question,
+            }
           : { ...parent, childrenIds: [...parent.childrenIds, ...newIds] };
         next.set(parentId, patchedParent);
         relayoutAndRecompute(next, s.rootId, s.currentId);
-        return { nodes: next };
+        return {
+          nodes: next,
+          branchGeneratingNodeIds: s.branchGeneratingNodeIds.filter(
+            (id) => id !== parentId,
+          ),
+          branchFocusRequest:
+            newIds.length > 0
+              ? {
+                  token: nextId("focus"),
+                  parentId,
+                  childIds: newIds,
+                }
+              : s.branchFocusRequest,
+        };
       });
       return newIds;
     },
@@ -591,7 +729,15 @@ export const useStory = create<StoreState>()((set, get) => {
         }
 
         relayoutAndRecompute(next, s.rootId, s.currentId);
-        return { nodes: next, insertContext: null };
+        return {
+          nodes: next,
+          insertContext: null,
+          branchFocusRequest: {
+            token: nextId("focus"),
+            parentId,
+            childIds: [newId],
+          },
+        };
       });
       return createdId;
     },
@@ -601,7 +747,8 @@ export const useStory = create<StoreState>()((set, get) => {
         const n = s.nodes.get(nodeId);
         if (!n) return {};
         const next = new Map(s.nodes);
-        const titleChanged = patch.title !== undefined && patch.title !== n.title;
+        const titleChanged =
+          patch.title !== undefined && patch.title !== n.title;
         const merged: StoryNode = {
           ...n,
           ...patch,
@@ -633,12 +780,24 @@ export const useStory = create<StoreState>()((set, get) => {
           ...n,
           ...(patch.body !== undefined ? { body: patch.body } : {}),
           ...(patch.summary !== undefined ? { summary: patch.summary } : {}),
-          ...(patch.rawBrainstorm !== undefined ? { rawBrainstorm: patch.rawBrainstorm } : {}),
-          ...(patch.renderedImagePrompt !== undefined ? { renderedImagePrompt: patch.renderedImagePrompt } : {}),
-          ...(patch.customPrompt !== undefined ? { customPrompt: patch.customPrompt } : {}),
-          ...(patch.cameraAngle !== undefined ? { cameraAngle: patch.cameraAngle } : {}),
-          ...(patch.lightingMood !== undefined ? { lightingMood: patch.lightingMood } : {}),
-          ...(patch.characterRefUrl !== undefined ? { characterRefUrl: patch.characterRefUrl } : {}),
+          ...(patch.rawBrainstorm !== undefined
+            ? { rawBrainstorm: patch.rawBrainstorm }
+            : {}),
+          ...(patch.renderedImagePrompt !== undefined
+            ? { renderedImagePrompt: patch.renderedImagePrompt }
+            : {}),
+          ...(patch.customPrompt !== undefined
+            ? { customPrompt: patch.customPrompt }
+            : {}),
+          ...(patch.cameraAngle !== undefined
+            ? { cameraAngle: patch.cameraAngle }
+            : {}),
+          ...(patch.lightingMood !== undefined
+            ? { lightingMood: patch.lightingMood }
+            : {}),
+          ...(patch.characterRefUrl !== undefined
+            ? { characterRefUrl: patch.characterRefUrl }
+            : {}),
         });
         return { nodes: next };
       }),
@@ -708,8 +867,7 @@ export const useStory = create<StoreState>()((set, get) => {
     mergeCharacters: (entries) =>
       set((s) => ({ characters: { ...s.characters, ...entries } })),
 
-    appendAgent: (ev) =>
-      set((s) => ({ agents: [...s.agents.slice(-19), ev] })),
+    appendAgent: (ev) => set((s) => ({ agents: [...s.agents.slice(-19), ev] })),
 
     updateAgent: (id, patch) =>
       set((s) => ({
@@ -718,8 +876,7 @@ export const useStory = create<StoreState>()((set, get) => {
 
     clearAgents: () => set({ agents: [] }),
 
-    addRenderJob: (job) =>
-      set((s) => ({ renderJobs: [...s.renderJobs, job] })),
+    addRenderJob: (job) => set((s) => ({ renderJobs: [...s.renderJobs, job] })),
 
     updateRenderJob: (id, patch) =>
       set((s) => ({
@@ -733,8 +890,7 @@ export const useStory = create<StoreState>()((set, get) => {
         renderJobs: s.renderJobs.filter((j) => j.id !== id),
       })),
 
-    addSnapshot: (snap) =>
-      set((s) => ({ snapshots: [...s.snapshots, snap] })),
+    addSnapshot: (snap) => set((s) => ({ snapshots: [...s.snapshots, snap] })),
 
     setSnapshots: (snaps) => set({ snapshots: snaps }),
   };

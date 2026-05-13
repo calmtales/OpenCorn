@@ -2,7 +2,7 @@
  *  BeatChooser — next critical beats suggestion panel
  *  Shows brainstorm branch options below the current node,
  *  lets the user pick the next canon beat or spawn a what-if.
- *  Noustiny-inspired, OpenCorn (inline CSS, no Tailwind)
+ *  OpenCorn branch chooser (inline CSS, no Tailwind)
  *  ────────────────────────────────────────────────────────────────────── */
 
 import { useState, useCallback } from "react";
@@ -135,7 +135,10 @@ interface BeatSuggestion {
  * If no children exist, returns an empty array (user can click a node
  * to trigger brainstorm via the edge buttons).
  */
-function collectSuggestions(currentNode: TStoryNode | undefined, nodes: Map<string, TStoryNode>): BeatSuggestion[] {
+function collectSuggestions(
+  currentNode: TStoryNode | undefined,
+  nodes: Map<string, TStoryNode>,
+): BeatSuggestion[] {
   if (!currentNode || currentNode.childrenIds.length === 0) return [];
   return currentNode.childrenIds
     .map((childId, idx) => {
@@ -202,7 +205,7 @@ export function BeatChooser() {
               <div style={s.cardSummary}>{beat.summary}</div>
               <div style={s.cardAction(tint)}>
                 <ArrowRight size={9} strokeWidth={2.4} />
-                enter
+                continue
               </div>
             </div>
           );

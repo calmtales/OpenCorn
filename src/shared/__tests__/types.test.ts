@@ -1,5 +1,9 @@
 import { describe, it, expect } from "bun:test";
-import { DEFAULT_SETTINGS, type VideoProvider, type ImageProvider } from "../types";
+import {
+  DEFAULT_SETTINGS,
+  type VideoProvider,
+  type PipelineStage,
+} from "../types";
 
 describe("shared/types", () => {
   describe("VideoProvider", () => {
@@ -32,6 +36,17 @@ describe("shared/types", () => {
 
     it("mcpServerUrl uses stdio scheme", () => {
       expect(DEFAULT_SETTINGS.mcpServerUrl).toMatch(/^stdio:\/\//);
+    });
+
+    it("defaults workflowMode to auto", () => {
+      expect(DEFAULT_SETTINGS.workflowMode).toBe("auto");
+    });
+  });
+
+  describe("PipelineStage", () => {
+    it("includes waiting_approval", () => {
+      const stage: PipelineStage = "waiting_approval";
+      expect(stage).toBe("waiting_approval");
     });
   });
 });

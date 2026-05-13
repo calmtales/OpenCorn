@@ -1,17 +1,21 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type {
   FilmStyle,
+  IndustryMode,
   PipelineStage,
   PipelineStatus,
+  ProductionLayer,
   Storyboard,
   AppSettings,
   Toast,
+  WorkflowResumePayload,
 } from "../../shared/types";
 import { DEFAULT_SETTINGS } from "../../shared/types";
 
 interface PipelineState {
   stage: PipelineStage;
   progress: number;
+  pendingStage?: PipelineStatus["pendingStage"];
   workflowId: string | null;
   storyboard: Storyboard | null;
   videoUrl: string | null;
@@ -69,6 +73,7 @@ export function useFilmPipeline() {
         ...prev,
         stage: status.stage,
         progress: status.progress,
+        pendingStage: status.pendingStage,
         error: status.error ?? null,
       }));
 
@@ -77,6 +82,7 @@ export function useFilmPipeline() {
         generating_screenplay: "Writing your screenplay...",
         generating_keyframes: "Rendering scene keyframes...",
         generating_video: "Generating video clips...",
+        waiting_approval: "Pipeline paused: waiting for approval.",
         stitching: "Stitching final render...",
         complete: "Film complete!",
       };
@@ -93,7 +99,7 @@ export function useFilmPipeline() {
               type: status.stage === "complete" ? "success" : "info",
               message: msg,
             } as Toast,
-          })
+          }),
         );
       }
 
@@ -106,7 +112,7 @@ export function useFilmPipeline() {
               message: status.error,
               duration: 6000,
             } as Toast,
-          })
+          }),
         );
       }
     };
@@ -119,8 +125,12 @@ export function useFilmPipeline() {
       }));
       window.dispatchEvent(
         new CustomEvent("toast", {
-          detail: { id: "", type: "success", message: "Storyboard ready!" } as Toast,
-        })
+          detail: {
+            id: "",
+            type: "success",
+            message: "Storyboard ready!",
+          } as Toast,
+        }),
       );
     };
 
@@ -139,8 +149,14 @@ export function useFilmPipeline() {
     window.addEventListener("video-ready", onVideo as EventListener);
 
     return () => {
-      window.removeEventListener("pipeline-update", onPipeline as EventListener);
-      window.removeEventListener("storyboard-ready", onStoryboard as EventListener);
+      window.removeEventListener(
+        "pipeline-update",
+        onPipeline as EventListener,
+      );
+      window.removeEventListener(
+        "storyboard-ready",
+        onStoryboard as EventListener,
+      );
       window.removeEventListener("video-ready", onVideo as EventListener);
     };
   }, []);
@@ -159,6 +175,7 @@ export function useFilmPipeline() {
           ...prev,
           stage: status.stage,
           progress: status.progress,
+          pendingStage: status.pendingStage,
           error: status.error ?? null,
         }));
 
@@ -195,7 +212,12 @@ export function useFilmPipeline() {
   }, []);
 
   const submitIdea = useCallback(
-    async (idea: string, style: FilmStyle) => {
+    async (
+      idea: string,
+      style: FilmStyle,
+      industryMode: IndustryMode = "filmmaking",
+      productionLayer: ProductionLayer = "storyboard-previs",
+    ) => {
       setState((prev) => ({
         ...prev,
         ...INITIAL,
@@ -206,41 +228,101 @@ export function useFilmPipeline() {
 
       window.dispatchEvent(
         new CustomEvent("toast", {
-          detail: { id: "", type: "info", message: "Starting film generation..." } as Toast,
-        })
+          detail: {
+            id: "",
+            type: "info",
+            message: "Starting film generation...",
+          } as Toast,
+        }),
       );
 
       const rpc = getBunRpc();
-      const { workflowId } = await rpc.request.submitIdea({
+      const { workflowId, storyboard } = await rpc.request.submitIdea({
         idea,
         style,
         settings: state.settings,
+        industryMode,
+        productionLayer,
       });
 
-      setState((prev) => ({ ...prev, workflowId }));
-      startPolling(workflowId);
+      setState((prev) => ({
+        ...prev,
+        workflowId,
+        ...(storyboard ? { storyboard } : {}),
+        ...(state.settings.workflowMode === "approval" && storyboard
+          ? {
+              stage: "waiting_approval" as PipelineStage,
+              progress: 25,
+              pendingStage: "keyframes" as const,
+            }
+          : {}),
+      }));
+
+      if (state.settings.workflowMode !== "approval" || !storyboard) {
+        startPolling(workflowId);
+      }
 
       return { workflowId };
     },
-    [startPolling, state.settings]
+    [startPolling, state.settings],
   );
 
+  const approvePipelineStage = useCallback(async (): Promise<boolean> => {
+    if (!state.workflowId) return false;
+
+    const rpc = getBunRpc();
+    const { started } = await rpc.request.approvePipelineStage({
+      workflowId: state.workflowId,
+    });
+
+    if (started) {
+      setState((prev) => ({
+        ...prev,
+        stage: "generating_keyframes",
+        progress: Math.max(prev.progress, 25),
+        pendingStage: undefined,
+        error: null,
+      }));
+      startPolling(state.workflowId);
+    }
+
+    return started;
+  }, [startPolling, state.workflowId]);
+
   const resumeWorkflow = useCallback(
-    async (workflowId: string): Promise<Storyboard | null> => {
+    async (workflowId: string): Promise<WorkflowResumePayload> => {
       const rpc = getBunRpc();
       let resolvedStoryboard: Storyboard | null = null;
       let resolvedVideoUrl: string | null = null;
+      let pendingApprovalStage: string | undefined;
+      let resolvedCreativeRoom: WorkflowResumePayload["creativeRoom"];
+      let resolvedWritersRoomPack: WorkflowResumePayload["writersRoomPack"];
+      let resumedIndustryMode: WorkflowResumePayload["industryMode"];
 
       try {
         const resumed = await rpc.request.resumeWorkflow({ workflowId });
         resolvedStoryboard = resumed.storyboard ?? null;
         resolvedVideoUrl = resumed.videoUrl ?? null;
+        resolvedCreativeRoom = resumed.creativeRoom;
+        resolvedWritersRoomPack = resumed.writersRoomPack;
+        resumedIndustryMode = resumed.industryMode;
       } catch {
         // Fall back to the older direct-fetch path below.
       }
 
+      try {
+        const approval = await rpc.request.getApprovalState({ workflowId });
+        pendingApprovalStage = approval.pendingStage;
+      } catch {
+        // Approval state is optional for older backends.
+      }
+
       // Fetch existing storyboard if the backend did not provide one.
-      if (!resolvedStoryboard) {
+      if (
+        !resolvedStoryboard &&
+        !resolvedCreativeRoom &&
+        !resolvedWritersRoomPack
+      ) {
         try {
           const sb = await rpc.request.getStoryboard({ workflowId });
           resolvedStoryboard = sb;
@@ -249,45 +331,85 @@ export function useFilmPipeline() {
         }
       }
 
+      const authoringOnlyWorkflow =
+        !resolvedStoryboard &&
+        !!(
+          resolvedCreativeRoom ||
+          resolvedWritersRoomPack ||
+          (resumedIndustryMode && resumedIndustryMode !== "filmmaking")
+        );
+
+      if (authoringOnlyWorkflow) {
+        pendingApprovalStage = undefined;
+        if (pollRef.current) clearInterval(pollRef.current);
+      }
+
       if (resolvedStoryboard) {
         setState((prev) => ({
           ...prev,
           storyboard: resolvedStoryboard,
           workflowId,
-          stage: resolvedVideoUrl ? "complete" : "generating_keyframes",
-          progress: resolvedVideoUrl ? 100 : 30,
+          stage: resolvedVideoUrl
+            ? "complete"
+            : pendingApprovalStage
+              ? "waiting_approval"
+              : "generating_keyframes",
+          progress: resolvedVideoUrl ? 100 : pendingApprovalStage ? 25 : 30,
+          pendingStage: pendingApprovalStage as PipelineStatus["pendingStage"],
           videoUrl: resolvedVideoUrl,
         }));
       } else {
-        setState((prev) => ({ ...prev, workflowId }));
+        setState((prev) => ({
+          ...prev,
+          workflowId,
+          stage: authoringOnlyWorkflow ? "idle" : prev.stage,
+          progress: authoringOnlyWorkflow ? 0 : prev.progress,
+          pendingStage: authoringOnlyWorkflow ? undefined : prev.pendingStage,
+          videoUrl: resolvedVideoUrl,
+        }));
       }
 
       // Try to get video if the backend did not already provide it.
-      if (!resolvedVideoUrl) {
-        try {
-          const { videoUrl } = await rpc.request.getVideo({ workflowId });
-          resolvedVideoUrl = videoUrl;
-          setState((prev) => ({
-            ...prev,
-            videoUrl,
-            stage: "complete",
-            progress: 100,
-          }));
-        } catch {
-          // Not ready, start polling.
-          startPolling(workflowId);
+      if (!resolvedVideoUrl && !authoringOnlyWorkflow) {
+        if (!pendingApprovalStage) {
+          try {
+            const { videoUrl } = await rpc.request.getVideo({ workflowId });
+            resolvedVideoUrl = videoUrl;
+            setState((prev) => ({
+              ...prev,
+              videoUrl,
+              stage: "complete",
+              progress: 100,
+            }));
+          } catch {
+            // Not ready, start polling.
+            startPolling(workflowId);
+          }
         }
       }
 
       window.dispatchEvent(
         new CustomEvent("toast", {
-          detail: { id: "", type: "info", message: `Resumed workflow ${workflowId.slice(0, 8)}` } as Toast,
-        })
+          detail: {
+            id: "",
+            type: "info",
+            message: `Resumed workflow ${workflowId.slice(0, 8)}`,
+          } as Toast,
+        }),
       );
 
-      return resolvedStoryboard;
+      return {
+        workflowId,
+        ...(resolvedStoryboard ? { storyboard: resolvedStoryboard } : {}),
+        ...(resolvedVideoUrl ? { videoUrl: resolvedVideoUrl } : {}),
+        ...(resolvedCreativeRoom ? { creativeRoom: resolvedCreativeRoom } : {}),
+        ...(resolvedWritersRoomPack
+          ? { writersRoomPack: resolvedWritersRoomPack }
+          : {}),
+        ...(resumedIndustryMode ? { industryMode: resumedIndustryMode } : {}),
+      };
     },
-    [startPolling]
+    [startPolling],
   );
 
   const updateScene = useCallback(
@@ -295,7 +417,7 @@ export function useFilmPipeline() {
       setState((prev) => {
         if (!prev.storyboard) return prev;
         const scenes = prev.storyboard.scenes.map((s) =>
-          s.id === sceneId ? { ...s, ...updates } : s
+          s.id === sceneId ? { ...s, ...updates } : s,
         );
         return {
           ...prev,
@@ -311,7 +433,7 @@ export function useFilmPipeline() {
           .catch(() => {});
       }
     },
-    [state.workflowId]
+    [state.workflowId],
   );
 
   const updateSettings = useCallback((settings: AppSettings) => {
@@ -326,6 +448,7 @@ export function useFilmPipeline() {
   return {
     stage: state.stage,
     progress: state.progress,
+    pendingStage: state.pendingStage,
     workflowId: state.workflowId,
     storyboard: state.storyboard,
     videoUrl: state.videoUrl,
@@ -333,6 +456,7 @@ export function useFilmPipeline() {
     settings: state.settings,
     submitIdea,
     resumeWorkflow,
+    approvePipelineStage,
     updateScene,
     updateSettings,
     reset,

@@ -15,9 +15,163 @@ export type PipelineStage =
   | "generating_screenplay"
   | "generating_keyframes"
   | "generating_video"
+  | "waiting_approval"
   | "processing_audio"
   | "stitching"
   | "complete";
+
+export type WorkflowMode = "auto" | "approval";
+export type ApprovalStage = "keyframes" | "scene_videos" | "audio" | "stitch";
+export type IndustryMode =
+  | "filmmaking"
+  | "design"
+  | "architecture"
+  | "advertising";
+
+export type WritersRoomFormat =
+  | "feature-film"
+  | "web-series"
+  | "animation-anime"
+  | "ott-original"
+  | "franchise-ip"
+  | "ad-film"
+  | "docu-drama";
+
+export type WritersRoomPackageTier = "lite" | "studio" | "franchise";
+
+export type WritersRoomStageId =
+  | "idea-intake"
+  | "concept-expansion"
+  | "structure-building"
+  | "character-system"
+  | "world-bible"
+  | "draft-generation"
+  | "human-refinement";
+
+export type WritersRoomReviewRole = "writer" | "showrunner" | "producer";
+export type WritersRoomApproval =
+  | "pending"
+  | "approved"
+  | "changes_requested"
+  | "rejected";
+
+export type ProductionLayer =
+  | "writers-room"
+  | "storyboard-previs"
+  | "virtual-production"
+  | "post-localization"
+  | "ip-franchise";
+
+export interface LayerStartOptions {
+  writersRoomFormat?: WritersRoomFormat;
+  writersRoomTier?: WritersRoomPackageTier;
+}
+
+export interface WritersRoomAnalysisEntry {
+  name: string;
+  mentions: number;
+  span?: string;
+}
+
+export interface WritersRoomAnalysis {
+  seedSummary: string;
+  register: string;
+  moodArc: string[];
+  motifsTop: string[];
+  characters: WritersRoomAnalysisEntry[];
+  objects: WritersRoomAnalysisEntry[];
+  ip: {
+    level: string;
+    franchise?: string;
+    modelPreference?: string;
+  };
+}
+
+export interface WritersRoomDeliverable {
+  id: string;
+  stageId: WritersRoomStageId;
+  title: string;
+  summary: string;
+  body: string;
+  status: "ready" | "error";
+  tier: WritersRoomPackageTier;
+  enrichmentStatus?: "pending" | "enriching" | "enriched" | "edited";
+}
+
+export interface WritersRoomStage {
+  id: WritersRoomStageId;
+  title: string;
+  summary: string;
+  order: number;
+  status: "ready" | "planned" | "error";
+  deliverableIds: string[];
+}
+
+export interface WritersRoomRoleReview {
+  role: WritersRoomReviewRole;
+  label: string;
+  responsibility: string;
+  status: "pending" | "reviewed";
+  approval: WritersRoomApproval;
+  notes: string;
+  stageId?: WritersRoomStageId;
+  deliverableIds?: string[];
+  updatedAt?: string;
+}
+
+export interface WritersRoomRevision {
+  id: string;
+  event: string;
+  actor: string;
+  role?: WritersRoomReviewRole;
+  stageId: WritersRoomStageId;
+  approval?: WritersRoomApproval;
+  summary: string;
+  changedDeliverableIds: string[];
+  stageIds?: WritersRoomStageId[];
+  createdAt: string;
+}
+
+export interface WritersRoomRefinementInput {
+  workflowId: string;
+  role: WritersRoomReviewRole;
+  stageId: WritersRoomStageId;
+  notes: string;
+  approval?: WritersRoomApproval;
+  deliverableIds?: string[];
+}
+
+export interface WritersRoomPack {
+  workflowId: string;
+  seed: string;
+  format: WritersRoomFormat;
+  packageTier: WritersRoomPackageTier;
+  title: string;
+  summary: string;
+  analysis: WritersRoomAnalysis;
+  stages: WritersRoomStage[];
+  deliverables: WritersRoomDeliverable[];
+  roleReviews: WritersRoomRoleReview[];
+  revisionHistory: WritersRoomRevision[];
+  status: "ready" | "error";
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ApprovalDecision {
+  workflowId: string;
+  stage: ApprovalStage;
+  approved: boolean;
+  decidedAt: string;
+  actor: "human" | "agent";
+  reason?: string;
+}
+
+export interface ApprovalState {
+  workflowId: string;
+  pendingStage?: ApprovalStage;
+  history: ApprovalDecision[];
+}
 
 export type VideoProvider = "ltx" | "sora2" | "seedance" | "wan";
 export type ImageProvider = "nano_banana" | "seedream" | "gemini";
@@ -37,6 +191,7 @@ export type LightingMood =
 
 export interface AppSettings {
   mcpServerUrl: string;
+  workflowMode: WorkflowMode;
   videoProvider: VideoProvider;
   imageProvider: ImageProvider;
   aspectRatio: AspectRatio;
@@ -57,6 +212,7 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   mcpServerUrl: "stdio://stoira_mcp_server.py",
+  workflowMode: "auto",
   videoProvider: "ltx",
   imageProvider: "nano_banana",
   aspectRatio: "16:9",
@@ -76,6 +232,7 @@ export interface PipelineStatus {
   stage: PipelineStage;
   progress: number; // 0-100
   error?: string;
+  pendingStage?: ApprovalStage;
 }
 
 export interface Keyframe {
@@ -111,6 +268,87 @@ export interface Storyboard {
   createdAt: string;
 }
 
+export interface AuthoringBeat {
+  id?: string;
+  title: string;
+  body: string;
+  mood?: string;
+}
+
+export interface AuthoringBranchOption {
+  label: string;
+  summary: string;
+  deliverable?: string;
+  nextAction?: string;
+  rationale?: string;
+  promptSeed?: string;
+}
+
+export interface AuthoringBrainstormResult {
+  workflowId?: string;
+  seed?: string;
+  title?: string;
+  industryMode?: IndustryMode;
+  options: AuthoringBranchOption[];
+  contextBrief?: string;
+  motifsTop?: string[];
+  status?: "ready" | "error";
+  createdAt?: string;
+}
+
+export interface AuthoringWriterAssistResult {
+  title: string;
+  summary: string;
+  body: string;
+  imagePrompt: string;
+  mood?: string;
+  tone?: string;
+}
+
+export interface StoryPolicyResult {
+  ipLevel: string;
+  franchise?: string | null;
+  modelPreference?: string;
+  reason?: string;
+}
+
+export interface CharacterSheetEntry {
+  name: string;
+  description: string;
+  portraitPrompt?: string;
+}
+
+export interface ReharmonizeRewrite {
+  nodeId: string;
+  title: string;
+  summary: string;
+  body: string;
+  imagePrompt: string;
+  mood?: string;
+  reason?: string;
+}
+
+export interface ReharmonizeStoryResult {
+  rewrites: ReharmonizeRewrite[];
+  rewrittenCount: number;
+}
+
+export interface WorkflowResumePayload {
+  workflowId: string;
+  storyboard?: Storyboard;
+  videoUrl?: string;
+  creativeRoom?: AuthoringBrainstormResult;
+  writersRoomPack?: WritersRoomPack;
+  industryMode?: IndustryMode;
+  productionLayer?: ProductionLayer;
+}
+
+export interface ProjectLogEntry {
+  ts: string;
+  event: string;
+  details: Record<string, unknown>;
+}
+
 export interface FilmProject {
   workflowId: string;
   storyboard: Storyboard | null;
@@ -124,6 +362,10 @@ export interface WorkflowSummary {
   title: string;
   idea: string;
   style: FilmStyle;
+  industryMode?: IndustryMode;
+  productionLayer?: ProductionLayer;
+  writersRoomFormat?: WritersRoomFormat;
+  writersRoomTier?: WritersRoomPackageTier;
   createdAt: string;
   status: PipelineStage;
   videoUrl?: string;
@@ -152,13 +394,81 @@ export interface BunRPC {
       idea: string;
       style: FilmStyle;
       settings: AppSettings;
-    }) => { workflowId: string };
+      industryMode?: IndustryMode;
+      productionLayer?: ProductionLayer;
+    }) => {
+      workflowId: string;
+      storyboard?: Storyboard;
+      creativeRoom?: AuthoringBrainstormResult;
+    };
     getStoryboard: (args: { workflowId: string }) => Storyboard;
     pollStatus: (args: { workflowId: string }) => PipelineStatus;
     getVideo: (args: { workflowId: string }) => { videoUrl: string };
+    approvePipelineStage: (args: { workflowId: string }) => {
+      started: boolean;
+    };
+    getApprovalState: (args: { workflowId: string }) => ApprovalState;
+    getProjectLog: (args: { workflowId: string; limit?: number }) => {
+      workflowId: string;
+      logPath?: string;
+      events: ProjectLogEntry[];
+    };
+    authoringBrainstorm: (args: {
+      workflowId?: string;
+      industryMode?: IndustryMode;
+      seed: string;
+      canonBeats: AuthoringBeat[];
+      focusBeat: AuthoringBeat;
+      branchCount?: number;
+      productionLayer?: ProductionLayer;
+    }) => AuthoringBrainstormResult;
+    generateWritersRoomPack: (args: {
+      seed: string;
+      format: WritersRoomFormat;
+      packageTier: WritersRoomPackageTier;
+      workflowId?: string;
+      productionLayer?: ProductionLayer;
+    }) => WritersRoomPack;
+    regenerateWritersRoomDeliverable: (args: {
+      workflowId: string;
+      deliverableId: string;
+      notes?: string;
+    }) => WritersRoomPack;
+    updateWritersRoomDeliverable: (args: {
+      workflowId: string;
+      deliverableId: string;
+      body: string;
+    }) => WritersRoomPack;
+    recordWritersRoomRefinement: (
+      args: WritersRoomRefinementInput,
+    ) => WritersRoomPack;
+    authoringWriterAssist: (args: {
+      workflowId?: string;
+      seed: string;
+      canonTitles: string[];
+      parentTitle: string;
+      childTitle: string;
+      intent: string;
+      mode: "canon" | "what-if";
+    }) => AuthoringWriterAssistResult;
+    reharmonizeStory: (args: {
+      insertedBeat: AuthoringBeat;
+      downstreamBeats: Array<{ nodeId: string; title: string; body: string }>;
+    }) => ReharmonizeStoryResult;
+    detectStoryPolicy: (args: { seed: string }) => StoryPolicyResult;
+    generateCharacterSheet: (args: {
+      seed: string;
+      franchise?: string | null;
+      allowIpNames?: boolean;
+    }) => { entries: CharacterSheetEntry[] };
+    generateImage: (args: {
+      prompt: string;
+      imageModel?: string;
+      referenceUrls?: string[];
+    }) => { imageUrl: string };
     listWorkflows: () => { workflows: WorkflowSummary[] };
     deleteWorkflow: (args: { workflowId: string }) => { success: boolean };
-    resumeWorkflow: (args: { workflowId: string }) => { workflowId: string; storyboard?: Storyboard; videoUrl?: string };
+    resumeWorkflow: (args: { workflowId: string }) => WorkflowResumePayload;
     updateScene: (args: {
       workflowId: string;
       sceneId: string;
@@ -168,36 +478,53 @@ export interface BunRPC {
       sceneIds: string[];
       updates: Partial<Scene>;
     }) => { success: boolean; updatedCount: number };
-    createSnapshot: (args: {
-      name?: string;
-    }) => { snapshotName: string; path: string; createdAt: string; sceneCount: number };
+    createSnapshot: (args: { name?: string }) => {
+      snapshotName: string;
+      path: string;
+      createdAt: string;
+      sceneCount: number;
+    };
     listSnapshots: () => { snapshots: Snapshot[]; count: number };
     getSettings: () => AppSettings;
     getMcpStatus: () => { connected: boolean };
     saveSettings: (args: { settings: AppSettings }) => { success: boolean };
-    // Hermes
-    loadSkill: (args: { skillName: string }) => { content: string };
     // ComfyUI
-    comfyConnect: (args: { url: string }) => { success: boolean; models: ComfyUIModel[] };
+    comfyConnect: (args: { url: string }) => {
+      success: boolean;
+      models: ComfyUIModel[];
+    };
     comfyDisconnect: () => { success: boolean };
     comfyGetStatus: () => ComfyUIConnection;
     comfyScanModels: () => { models: ComfyUIModel[] };
-    comfyImportWorkflow: (args: { json: string }) => { workflow: ComfyUIWorkflow };
+    comfyImportWorkflow: (args: { json: string }) => {
+      workflow: ComfyUIWorkflow;
+    };
     comfyExportWorkflow: (args: { workflowId: string }) => { json: string };
-    comfySubmitPrompt: (args: { workflowId: string; inputs: Record<string, unknown> }) => { promptId: string };
+    comfySubmitPrompt: (args: {
+      workflowId: string;
+      inputs: Record<string, unknown>;
+    }) => { promptId: string };
     comfyPollStatus: (args: { promptId: string }) => ComfyUIQueueItem;
     comfyListQueue: () => { queue: ComfyUIQueueItem[] };
     // Local Models
     scanLocalModels: (args: { dir?: string }) => { models: LocalModel[] };
     getRecommendedModels: () => { models: RecommendedModel[] };
-    downloadModel: (args: { modelId: string; url: string }) => { success: boolean };
+    downloadModel: (args: { modelId: string; url: string }) => {
+      success: boolean;
+    };
     getVramInfo: () => { totalMb: number; usedMb: number; freeMb: number };
     benchmarkModel: (args: { modelId: string }) => { latencyMs: number };
     // Batch
-    submitBatch: (args: { jobs: { idea: string; style: FilmStyle }[]; concurrency: number }) => { batchId: string };
+    submitBatch: (args: {
+      jobs: { idea: string; style: FilmStyle }[];
+      concurrency: number;
+    }) => { batchId: string };
     getBatchStatus: (args: { batchId: string }) => BatchState;
     cancelBatch: (args: { batchId: string }) => { success: boolean };
-    exportBatchResults: (args: { batchId: string; format: "zip" | "individual" }) => { path: string };
+    exportBatchResults: (args: {
+      batchId: string;
+      format: "zip" | "individual";
+    }) => { path: string };
   };
   messages: {
     onPipelineUpdate: { status: PipelineStatus };
@@ -205,12 +532,20 @@ export interface BunRPC {
     onVideoReady: { videoUrl: string };
     onToast: { toast: Toast };
     onComfyUIUpdate: { connection: ComfyUIConnection };
-    onBatchProgress: { jobId: string; status: BatchJob["status"]; progress: number };
+    onBatchProgress: {
+      jobId: string;
+      status: BatchJob["status"];
+      progress: number;
+    };
   };
 }
 
 // --- ComfyUI Types ---
-export type ComfyUIStatus = "disconnected" | "connecting" | "connected" | "error";
+export type ComfyUIStatus =
+  | "disconnected"
+  | "connecting"
+  | "connected"
+  | "error";
 
 export interface ComfyUINode {
   id: string;
@@ -241,7 +576,14 @@ export interface ComfyUIQueueItem {
 
 export interface ComfyUIModel {
   name: string;
-  type: "checkpoint" | "lora" | "vae" | "controlnet" | "upscale" | "clip" | "unet";
+  type:
+    | "checkpoint"
+    | "lora"
+    | "vae"
+    | "controlnet"
+    | "upscale"
+    | "clip"
+    | "unet";
   path: string;
   sizeBytes?: number;
 }
@@ -334,6 +676,10 @@ export interface WebviewRPC {
     onVideoReady: { videoUrl: string };
     onToast: { toast: Toast };
     onComfyUIUpdate: { connection: ComfyUIConnection };
-    onBatchProgress: { jobId: string; status: BatchJob["status"]; progress: number };
+    onBatchProgress: {
+      jobId: string;
+      status: BatchJob["status"];
+      progress: number;
+    };
   };
 }

@@ -15,19 +15,32 @@ Open-source AI film studio. Type an idea, get a film.
 src/
   main/              # Bun main process
     index.ts         # MCP client (JSON-RPC), RPC handlers, window management
+    mcp-discovery.ts # MCP server auto-discovery and env forwarding
   renderer/          # React UI (runs in WebView)
     index.tsx        # Entry point, Electroview RPC setup
-    App.tsx          # Main layout with dark film-production theme
+    App.tsx          # Top-level layout, writers-room hydration, idea flow
     components/
-      IdeaInput.tsx       # Text area + style selector
-      StoryboardGrid.tsx  # Scene card grid
-      SceneCard.tsx       # Individual scene preview
-      TimelineBar.tsx     # Horizontal film timeline
-      PlayerPreview.tsx   # Video preview player
-      McpStatus.tsx       # MCP connection indicator
-      ExportPanel.tsx     # Download/format selector
+      Canvas.tsx           # ReactFlow canvas, zoom/fit, hub-and-spoke tree
+      StoryNode.tsx        # Individual story node card (supports image thumbnails)
+      StoryEdge.tsx        # Animated edge connector
+      SeedInput.tsx        # Idea text area + format/tier selectors
+      ModeSelector.tsx     # Mode switcher (writers room, production, etc.)
+      SettingsPanel.tsx    # Provider/model settings panel
+      HistoryPanel.tsx     # Workflow history sidebar
+      ProjectsDashboard.tsx # Projects overview
+      BeatChooser.tsx      # Beat selection UI for authoring
+      AgentTicker.tsx      # Live agent status ticker
+      CreativeInspector.tsx  # Deliverable detail inspector
+      InsertBetweenComposer.tsx # Insert-between-beats composer
+      StudioRail.tsx       # Left studio action rail
+      WritersRoomPanel.tsx # Writers-room stage/deliverable panel
     hooks/
-      useFilmPipeline.ts  # Pipeline state machine
+      useFilmPipeline.ts   # Pipeline state machine
+    lib/
+      store.ts             # Zustand state store
+      layout.ts            # ReactFlow auto-layout (hub-and-spoke)
+      types.ts             # Renderer-local types
+      authoring-client.ts  # Authoring RPC helpers
   shared/
     types.ts         # Types shared between main and renderer
 ```
@@ -35,11 +48,12 @@ src/
 ## How It Works
 
 1. **Enter an idea** — describe your film concept in the sidebar
-2. **Choose a style** — Anime, Film Noir, Cyberpunk, Watercolor, Realistic, or Stop Motion
-3. **Generate** — the app calls `generate_screenplay` on the stoira-mcp server
-4. **Pipeline runs** — screenplay → keyframes → video generation (via `run_full_pipeline`)
-5. **Preview** — scenes appear in the storyboard grid, video plays in the preview panel
-6. **Export** — download the final film in MP4, WebM, or MOV format
+2. **Choose format & tier** — Feature Film, Short, Pilot; Studio or Indie package
+3. **Generate Writers Room** — the app calls `generate_writers_room_pack` on stoira-mcp, which runs 7 narrative stages in parallel (Act Structure, Character Arcs, Scene Breakdown, etc.)
+4. **Explore the canvas** — stages appear as a hub-and-spoke tree; click a stage card to zoom into its deliverables
+5. **Refine** — edit deliverables inline, regenerate individual cards, or give notes to the whole stage
+6. **Production pipeline** — from the writers room, trigger `run_full_pipeline` to go: screenplay → keyframes → scene videos → audio → final cut
+7. **Export** — download the final film as MP4, WebM, or MOV
 
 ## MCP Integration
 
@@ -48,13 +62,19 @@ OpenCorn delegates all AI generation to the **stoira-mcp** server, which orchest
 ### What the MCP Server Does
 
 | Tool | Description |
-|------|-------------|
+| ---- | ----------- |
+| `generate_writers_room_pack` | Full writers-room package: 7 narrative stages, deliverables per stage |
+| `generate_creative_room` | Brainstorm story branches and beat alternatives |
+| `record_writers_room_refinement` | Record feedback and re-enrich deliverables |
+| `regenerate_writers_room_deliverable` | Regenerate a single deliverable with optional notes |
+| `generate_image` | Generate a keyframe image for a stage card |
 | `generate_screenplay` | Generate a multi-scene screenplay from a text idea |
-| `get_workflow_status` | Check pipeline progress for a workflow |
 | `run_full_pipeline` | Execute the full end-to-end production pipeline |
+| `get_workflow_status` | Check pipeline progress for a workflow |
 | `list_workflows` | List all production workflows |
 
 Internally, the server handles:
+
 - **Screenplay generation** — turns your idea into a structured multi-scene script
 - **Keyframe generation** — creates image keyframes for each scene
 - **Video generation** — renders video clips from keyframes (uses providers like Sora 2, Seedance, Wan)
@@ -75,6 +95,7 @@ python3 /tmp/stoira-mcp/stoira_mcp_server.py --transport stdio
 This is the simplest setup — no network configuration needed. The server runs on your machine and the client communicates with it over stdin/stdout.
 
 **Requirements for local mode:**
+
 - Python 3.10+
 - The stoira-mcp server scripts at `/tmp/stoira-mcp/`
 - API keys for the AI services the server wraps (image/video generation providers)
@@ -83,6 +104,7 @@ This is the simplest setup — no network configuration needed. The server runs 
 #### Remote Mode (TCP)
 
 Change `mcpServerUrl` to a `tcp://host:port` address (e.g. `tcp://192.168.1.50:8080`) to connect to a remotely hosted stoira-mcp server. This is useful when:
+
 - The server runs on a dedicated GPU machine in your network
 - You're sharing a server across a team
 - You want to offload generation to a cloud instance
@@ -99,12 +121,18 @@ idle → generating_screenplay → generating_keyframes → generating_video
 ## RPC Contract
 
 **Bun → Renderer (push):**
+
 - `onPipelineUpdate` — stage/progress changes
 - `onStoryboardReady` — storyboard generated
 - `onVideoReady` — final video available
 
 **Renderer → Bun (request/response):**
+
 - `submitIdea({ idea, style })` → `{ workflowId }`
+- `generateWritersRoomPack({ seed, format, packageTier })` → `WritersRoomPack`
+- `recordWritersRoomRefinement(input)` → `WritersRoomPack`
+- `regenerateWritersRoomDeliverable({ workflowId, deliverableId, notes? })` → `WritersRoomPack`
+- `generateImage({ prompt, imageModel? })` → `{ imageUrl }`
 - `getStoryboard({ workflowId })` → `Storyboard`
 - `pollStatus({ workflowId })` → `PipelineStatus`
 - `getVideo({ workflowId })` → `{ videoUrl }`
@@ -142,10 +170,12 @@ python3 -m venv .venv
 > **macOS:** Apple's system `python3` (3.9) is too old for the MCP SDK (requires 3.10+). The virtual environment ensures the right Python and dependencies are used. If `python3 -m venv` fails, install Python 3.10+ via [Homebrew](https://brew.sh): `brew install python@3.14`
 
 **Verify it works** by running the server directly:
+
 ```bash
 # From /tmp/stoira-mcp:
 .venv/bin/python3 stoira_mcp_server.py --transport stdio
 ```
+
 It should start and wait for JSON-RPC input on stdin. Press `Ctrl+C` to stop.
 
 OpenCorn automatically detects the `.venv` at `/tmp/stoira-mcp/.venv/bin/python3` and uses it. If no venv exists, it falls back to `python3` on your PATH.
@@ -163,6 +193,23 @@ export GCP_PROJECT="your-gcp-project"
 
 # Launch OpenCorn
 bun run dev
+```
+
+Writers-room enrichment and narrative authoring also use OpenRouter. OpenCorn will pass `OPENROUTER_API_KEY` through to `stoira-mcp` from the first local secret source it finds:
+
+- the current shell environment
+- `OPENCOORN_OPENROUTER_ENV_FILE=/absolute/path/to/openrouter.env`
+- `~/.config/opencorn/openrouter.env`
+- `~/.stoira/openrouter.env`
+- macOS Keychain service `OpenCorn OpenRouter API Key`
+
+Example local env file:
+
+```bash
+mkdir -p ~/.config/opencorn
+cat > ~/.config/opencorn/openrouter.env <<'EOF'
+OPENROUTER_API_KEY="your-openrouter-key"
+EOF
 ```
 
 The server starts in **degraded mode** when providers are unconfigured — it will respond to MCP handshakes and list tools, but generation requests will fail with clear error messages. This means OpenCorn will connect successfully even without API keys; you can configure them later.
@@ -186,14 +233,14 @@ bun run package
 
 The UI film styles map to stoira-mcp's `anime_style` enum:
 
-| UI Style | MCP anime_style |
-|----------|----------------|
-| Anime | `ANIME` |
-| Film Noir | `ANIME` |
-| Cyberpunk | `THREE_D_ANIME` |
-| Watercolor | `STUDIO_GHIBLI` |
-| Realistic | `THREE_D_ANIME` |
-| Stop Motion | `PIXEL_ART` |
+| UI Style    | MCP anime_style |
+| ----------- | --------------- |
+| Anime       | `ANIME`         |
+| Film Noir   | `ANIME`         |
+| Cyberpunk   | `THREE_D_ANIME` |
+| Watercolor  | `STUDIO_GHIBLI` |
+| Realistic   | `THREE_D_ANIME` |
+| Stop Motion | `PIXEL_ART`     |
 
 ## Troubleshooting
 
@@ -219,7 +266,6 @@ The server runs in degraded mode when providers are unconfigured. Set the requir
 ### Remote server (TCP) connection
 
 To use a remote stoira-mcp server instead of a local subprocess, change `mcpServerUrl` in settings to `tcp://host:port` (e.g. `tcp://192.168.1.50:8080`). The remote server must be started with `--transport sse`.
-
 
 ## License
 

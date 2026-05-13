@@ -20,6 +20,7 @@ const STATUS_COLORS: Record<string, string> = {
   generating_screenplay: "var(--accent)",
   generating_keyframes: "var(--accent)",
   generating_video: "var(--accent)",
+  waiting_approval: "var(--warning)",
   stitching: "var(--warning)",
   idle: "var(--text-muted)",
 };
@@ -182,34 +183,63 @@ export function HistoryPanel({ onClose, onResume }: Props) {
 
   const handleDownload = (workflowId: string) => {
     const rpc = (window as any).__electrobun_rpc;
-    rpc?.request?.getVideo?.({ workflowId }).then(({ videoUrl }: { videoUrl: string }) => {
-      if (videoUrl) {
-        const a = document.createElement("a");
-        a.href = videoUrl;
-        a.download = `opencorn-${workflowId}.mp4`;
-        a.click();
-      }
-    }).catch(() => {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { id: "", type: "error", message: "No video available for download" } }));
-    });
+    rpc?.request
+      ?.getVideo?.({ workflowId })
+      .then(({ videoUrl }: { videoUrl: string }) => {
+        if (videoUrl) {
+          const a = document.createElement("a");
+          a.href = videoUrl;
+          a.download = `opencorn-${workflowId}.mp4`;
+          a.click();
+        }
+      })
+      .catch(() => {
+        window.dispatchEvent(
+          new CustomEvent("toast", {
+            detail: {
+              id: "",
+              type: "error",
+              message: "No video available for download",
+            },
+          }),
+        );
+      });
   };
 
   const handleDelete = async (workflowId: string) => {
     try {
       const rpc = (window as any).__electrobun_rpc;
-      await rpc?.request?.deleteWorkflow?.({ workflowId });
+      const result = await rpc?.request?.deleteWorkflow?.({ workflowId });
+      if (!result?.success) {
+        throw new Error("Delete failed");
+      }
       setWorkflows((prev) => prev.filter((w) => w.workflowId !== workflowId));
-      window.dispatchEvent(new CustomEvent("toast", { detail: { id: "", type: "success", message: "Workflow deleted" } }));
+      window.dispatchEvent(
+        new CustomEvent("toast", {
+          detail: { id: "", type: "success", message: "Workflow deleted" },
+        }),
+      );
     } catch {
-      window.dispatchEvent(new CustomEvent("toast", { detail: { id: "", type: "error", message: "Failed to delete workflow" } }));
+      window.dispatchEvent(
+        new CustomEvent("toast", {
+          detail: {
+            id: "",
+            type: "error",
+            message: "Failed to delete workflow",
+          },
+        }),
+      );
     }
   };
 
   const formatDate = (iso: string) => {
     try {
       const d = new Date(iso);
-      return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " +
-        d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      return (
+        d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
+        " " +
+        d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+      );
     } catch {
       return iso;
     }
@@ -221,7 +251,12 @@ export function HistoryPanel({ onClose, onResume }: Props) {
         <span style={s.title}>History</span>
         <button style={s.closeBtn} onClick={onClose} aria-label="Close history">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <path
+              d="M3 3l8 8M11 3l-8 8"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
           </svg>
         </button>
       </div>
@@ -233,12 +268,25 @@ export function HistoryPanel({ onClose, onResume }: Props) {
           <div style={s.empty}>
             <div style={s.emptyIcon}>
               <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
-                <circle cx="24" cy="24" r="18" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M24 14V24L30 30" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle
+                  cx="24"
+                  cy="24"
+                  r="18"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+                <path
+                  d="M24 14V24L30 30"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                />
               </svg>
             </div>
             <div style={{ fontSize: 12 }}>No workflows yet</div>
-            <div style={{ fontSize: 11 }}>Your generated films will appear here</div>
+            <div style={{ fontSize: 11 }}>
+              Your generated films will appear here
+            </div>
           </div>
         ) : (
           workflows.map((wf) => (
@@ -247,14 +295,48 @@ export function HistoryPanel({ onClose, onResume }: Props) {
               style={s.item(hoverId === wf.workflowId)}
               onMouseEnter={() => setHoverId(wf.workflowId)}
               onMouseLeave={() => setHoverId(null)}
-              onClick={() => setExpandedId(expandedId === wf.workflowId ? null : wf.workflowId)}
+              onClick={() =>
+                setExpandedId(
+                  expandedId === wf.workflowId ? null : wf.workflowId,
+                )
+              }
             >
               <div style={s.itemHeader}>
-                <span style={s.statusDot(STATUS_COLORS[wf.status] ?? "var(--text-muted)")} />
+                <span
+                  style={s.statusDot(
+                    STATUS_COLORS[wf.status] ?? "var(--text-muted)",
+                  )}
+                />
                 <span style={s.itemTitle}>{wf.title}</span>
-                <span style={{ fontSize: 14 }}>{STYLE_ICONS[wf.style] ?? "🎬"}</span>
+                <span style={{ fontSize: 14 }}>
+                  {STYLE_ICONS[wf.style] ?? "🎬"}
+                </span>
               </div>
               <div style={s.itemMeta}>
+                {wf.productionLayer ? (
+                  <>
+                    <span>{wf.productionLayer.replace(/-/g, " ")}</span>
+                    <span>&middot;</span>
+                  </>
+                ) : null}
+                {wf.industryMode && wf.industryMode !== "filmmaking" ? (
+                  <>
+                    <span>{wf.industryMode}</span>
+                    <span>&middot;</span>
+                  </>
+                ) : null}
+                {wf.writersRoomFormat ? (
+                  <>
+                    <span>{wf.writersRoomFormat}</span>
+                    <span>&middot;</span>
+                  </>
+                ) : null}
+                {wf.writersRoomTier ? (
+                  <>
+                    <span>{wf.writersRoomTier} pack</span>
+                    <span>&middot;</span>
+                  </>
+                ) : null}
                 <span>{wf.sceneCount} scenes</span>
                 <span>&middot;</span>
                 <span>{formatDate(wf.createdAt)}</span>

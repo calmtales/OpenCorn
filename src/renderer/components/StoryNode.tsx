@@ -1,22 +1,42 @@
 /*  ──────────────────────────────────────────────────────────────────────
  *  StoryNode — checkpoint + compact bar variants
- *  Noustiny-style branching canvas, ported for OpenCorn
+ *  OpenCorn branching canvas node variants
  *  Inline CSS only — no Tailwind, no framer-motion
  *  ────────────────────────────────────────────────────────────────────── */
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import {
-  AlertTriangle, Skull, Heart, Sparkles, Eye,
-  Lock, Check, ChevronRight, ArrowRight, X, Bot, User,
+  AlertTriangle,
+  Skull,
+  Heart,
+  Sparkles,
+  Eye,
+  Lock,
+  Check,
+  ChevronRight,
+  ArrowRight,
+  Library,
+  X,
+  Bot,
+  User,
 } from "lucide-react";
 import type { ComponentType, CSSProperties, SVGProps } from "react";
 import { useState, useEffect } from "react";
 import type { NodeMood, NodeTone, StoryNode as TStoryNode } from "../lib/types";
 import { useStory, modeLabels, modeStylePrefix } from "../lib/store";
-import { variantOf, COMPACT_RIBBON_Y, CHECKPOINT_HEIGHT, COMPACT_HEIGHT } from "../lib/layout";
+import {
+  variantOf,
+  COMPACT_RIBBON_Y,
+  CHECKPOINT_HEIGHT,
+  COMPACT_HEIGHT,
+  STAGE_HEIGHT,
+} from "../lib/layout";
 
 // Inject keyframe animations for weaving/generating states + CRT scanlines
-if (typeof document !== "undefined" && !document.getElementById("storynode-animations")) {
+if (
+  typeof document !== "undefined" &&
+  !document.getElementById("storynode-animations")
+) {
   const style = document.createElement("style");
   style.id = "storynode-animations";
   style.textContent = `
@@ -50,7 +70,11 @@ if (typeof document !== "undefined" && !document.getElementById("storynode-anima
 type Props = NodeProps & { data: { node: TStoryNode } };
 
 type LucideLike = ComponentType<
-  SVGProps<SVGSVGElement> & { size?: number; strokeWidth?: number; style?: CSSProperties }
+  SVGProps<SVGSVGElement> & {
+    size?: number;
+    strokeWidth?: number;
+    style?: CSSProperties;
+  }
 >;
 
 const MOOD_ICON: Record<NodeMood, LucideLike> = {
@@ -76,6 +100,26 @@ const MOOD_TINT: Record<NodeMood, string> = {
 // ---- Inline style objects ---------------------------------------------------
 
 const sCompact = {
+  branchBadge: {
+    position: "absolute" as const,
+    top: -10,
+    left: 12,
+    zIndex: 22,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "4px 8px",
+    borderRadius: 999,
+    border: "1px solid rgba(79,195,247,0.34)",
+    background: "rgba(5,9,14,0.92)",
+    color: "#4fc3f7",
+    fontFamily: "var(--font-mono)",
+    fontSize: 8.5,
+    fontWeight: 800,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.18em",
+    boxShadow: "0 10px 22px rgba(0,0,0,0.4)",
+  },
   thumb: {
     position: "relative" as const,
     width: "100%",
@@ -243,38 +287,45 @@ const sCheckpoint = {
     color: "rgba(170,185,205,0.55)",
   },
   quickActions: {
-    position: "absolute" as const,
-    right: 10,
-    top: 10,
-    zIndex: 24,
     display: "flex",
+    flexWrap: "wrap" as const,
     gap: 8,
-    opacity: 0,
-    transform: "translateY(-3px)",
-    transition: "opacity 0.14s ease, transform 0.14s ease",
-    pointerEvents: "none" as const,
+    marginTop: 12,
   },
-  quickButton: (variant: "canon" | "what-if") => ({
-    pointerEvents: "auto" as const,
+  quickButton: (variant: "canon" | "what-if" | "splice") => ({
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    minWidth: 38,
-    height: 38,
+    gap: 8,
+    minWidth: 124,
+    height: 34,
     padding: "0 12px",
-    border: `1.5px solid ${variant === "canon" ? "rgba(79,195,247,0.4)" : "rgba(233,193,107,0.4)"}`,
-    background: variant === "canon"
-      ? "rgba(79,195,247,0.15)"
-      : "rgba(233,193,107,0.15)",
-    color: variant === "canon" ? "#4fc3f7" : "#e9c16b",
-    borderRadius: variant === "canon" ? 999 : 8,
+    border: `1.5px solid ${
+      variant === "canon"
+        ? "rgba(79,195,247,0.4)"
+        : variant === "what-if"
+          ? "rgba(233,193,107,0.4)"
+          : "rgba(170,185,205,0.28)"
+    }`,
+    background:
+      variant === "canon"
+        ? "rgba(79,195,247,0.15)"
+        : variant === "what-if"
+          ? "rgba(233,193,107,0.15)"
+          : "rgba(255,255,255,0.05)",
+    color:
+      variant === "canon"
+        ? "#4fc3f7"
+        : variant === "what-if"
+          ? "#e9c16b"
+          : "rgba(214,222,233,0.88)",
+    borderRadius: 999,
     cursor: "pointer",
     fontFamily: "var(--font-mono)",
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: 800,
     textTransform: "uppercase" as const,
-    letterSpacing: "0.2em",
+    letterSpacing: "0.16em",
     boxShadow: "0 10px 24px rgba(0,0,0,0.45)",
     transition: "all 0.18s ease",
     backdropFilter: "blur(8px)",
@@ -319,7 +370,8 @@ const sCheckpoint = {
     position: "absolute" as const,
     inset: 0,
     pointerEvents: "none" as const,
-    background: "linear-gradient(180deg, transparent 0%, rgba(79,195,247,0.06) 50%, transparent 100%)",
+    background:
+      "linear-gradient(180deg, transparent 0%, rgba(79,195,247,0.06) 50%, transparent 100%)",
     backgroundSize: "100% 200%",
     animation: "scanSweep 3s linear infinite",
   },
@@ -345,8 +397,157 @@ const sCheckpoint = {
     right: 0,
     height: "40%",
     pointerEvents: "none" as const,
-    background: "linear-gradient(180deg, transparent 0%, rgba(79,195,247,0.04) 40%, rgba(79,195,247,0.06) 50%, rgba(79,195,247,0.04) 60%, transparent 100%)",
+    background:
+      "linear-gradient(180deg, transparent 0%, rgba(79,195,247,0.04) 40%, rgba(79,195,247,0.06) 50%, rgba(79,195,247,0.04) 60%, transparent 100%)",
     animation: "crtScroll 5s linear infinite",
+  },
+  branchOverlay: {
+    position: "absolute" as const,
+    left: 14,
+    right: 14,
+    bottom: 14,
+    zIndex: 18,
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: 6,
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(79,195,247,0.28)",
+    background:
+      "linear-gradient(180deg, rgba(6,10,15,0.94), rgba(5,8,12,0.84))",
+    boxShadow: "0 14px 30px rgba(0,0,0,0.35)",
+    backdropFilter: "blur(8px)",
+  },
+  branchOverlayKicker: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 9,
+    fontWeight: 800,
+    letterSpacing: "0.2em",
+    textTransform: "uppercase" as const,
+    color: "rgba(79,195,247,0.74)",
+  },
+  branchOverlayTitle: {
+    fontSize: 12,
+    lineHeight: 1.5,
+    color: "rgba(230,236,244,0.9)",
+  },
+} as const;
+
+const sStage = {
+  container: {
+    position: "relative" as const,
+    width: 560,
+    padding: 18,
+    borderRadius: 24,
+    border: "1px solid rgba(255,255,255,0.08)",
+    background:
+      "linear-gradient(180deg, rgba(18,22,30,0.96), rgba(9,12,18,0.96))",
+    boxShadow: "0 18px 44px rgba(0,0,0,0.34)",
+    userSelect: "none" as const,
+    overflow: "hidden" as const,
+  },
+  glow: {
+    position: "absolute" as const,
+    inset: 0,
+    pointerEvents: "none" as const,
+    background:
+      "radial-gradient(circle at top left, rgba(79,195,247,0.18), transparent 42%), radial-gradient(circle at bottom right, rgba(233,193,107,0.08), transparent 36%)",
+  },
+  header: {
+    position: "relative" as const,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  kicker: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: "0.18em",
+    textTransform: "uppercase" as const,
+    color: "rgba(79,195,247,0.82)",
+  },
+  order: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 44,
+    height: 28,
+    padding: "0 10px",
+    borderRadius: 999,
+    border: "1px solid rgba(233,193,107,0.32)",
+    background: "rgba(233,193,107,0.12)",
+    color: "#e9c16b",
+    fontFamily: "var(--font-mono)",
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase" as const,
+  },
+  title: {
+    position: "relative" as const,
+    marginTop: 18,
+    fontFamily: "var(--font-display)",
+    fontSize: 24,
+    fontWeight: 800,
+    letterSpacing: "-0.04em",
+    lineHeight: 1.05,
+    color: "#f2f5f8",
+  },
+  summary: {
+    position: "relative" as const,
+    marginTop: 12,
+    fontSize: 13,
+    lineHeight: 1.65,
+    color: "rgba(214,222,233,0.8)",
+    maxWidth: 480,
+  },
+  footer: {
+    position: "relative" as const,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginTop: 18,
+    paddingTop: 14,
+    borderTop: "1px solid rgba(255,255,255,0.06)",
+  },
+  meta: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap" as const,
+  },
+  pill: (accent: "blue" | "gold") => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "5px 9px",
+    borderRadius: 999,
+    border:
+      accent === "blue"
+        ? "1px solid rgba(79,195,247,0.28)"
+        : "1px solid rgba(233,193,107,0.24)",
+    background:
+      accent === "blue" ? "rgba(79,195,247,0.1)" : "rgba(233,193,107,0.1)",
+    color: accent === "blue" ? "#4fc3f7" : "#e9c16b",
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase" as const,
+  }),
+  currentTag: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: "0.16em",
+    textTransform: "uppercase" as const,
+    color: "rgba(233,193,107,0.84)",
   },
 } as const;
 
@@ -365,13 +566,16 @@ function quickBranchFor(
   labels: ReturnType<typeof modeLabels>,
 ) {
   const base = node.title?.trim() || node.summary?.trim() || labels.beat;
-  const prefix = variant === "canon" ? `Next ${labels.beat.toLowerCase()}` : `What if`;
-  const title = variant === "canon"
-    ? `${prefix}: ${base}`
-    : `${prefix} ${base.toLowerCase()}?`;
-  const summary = variant === "canon"
-    ? `${base} continues as the canonical ${labels.beat.toLowerCase()} path.`
-    : `An alternate ${labels.beat.toLowerCase()} that bends the story into a different direction.`;
+  const prefix =
+    variant === "canon" ? `Next ${labels.beat.toLowerCase()}` : `What if`;
+  const title =
+    variant === "canon"
+      ? `${prefix}: ${base}`
+      : `${prefix} ${base.toLowerCase()}?`;
+  const summary =
+    variant === "canon"
+      ? `${base} continues as the canonical ${labels.beat.toLowerCase()} path.`
+      : `An alternate ${labels.beat.toLowerCase()} that bends the story into a different direction.`;
   const body = `${summary}\n\nGenerated locally so the team can keep moving even while the brainstorm service is catching up.`;
   const imagePrompt = `${summary} ${modeStylePrefix(useStory.getState().industryMode)}`;
   return {
@@ -391,10 +595,14 @@ function quickBranchFor(
 function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
   const setCurrent = useStory((s) => s.setCurrent);
   const removeInserted = useStory((s) => s.removeInserted);
+  const isBranchGenerating = useStory((s) =>
+    s.branchGeneratingNodeIds.includes(node.id),
+  );
   const isHover = hovered;
   const MoodIcon = MOOD_ICON[node.mood];
   const staleTint = staleBorder(node);
-  const isShell = node.status === "generating" && !!node.inserted && !node.title;
+  const isShell =
+    node.status === "generating" && !!node.inserted && !node.title;
   const onCanon = node.status === "canon" || node.status === "current";
   const isVisited = node.status === "visited";
 
@@ -403,7 +611,8 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
   let iconColor: string;
 
   if (isShell) {
-    barBg = "linear-gradient(90deg, rgba(20,26,36,0.88) 0%, rgba(15,19,27,0.88) 100%)";
+    barBg =
+      "linear-gradient(90deg, rgba(20,26,36,0.88) 0%, rgba(15,19,27,0.88) 100%)";
     titleColor = "rgba(233,193,107,0.92)";
     iconColor = "rgba(233,193,107,0.8)";
   } else if (onCanon) {
@@ -440,13 +649,21 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
         transition: "opacity 0.3s ease, transform 0.3s ease",
         transform: isHover ? "scale(1.01)" : "scale(1)",
       }}
-      onClick={(e) => { e.stopPropagation(); setCurrent(node.id); }}
+      onClick={(e) => {
+        e.stopPropagation();
+        setCurrent(node.id);
+      }}
     >
+      {isBranchGenerating && <div style={sCompact.branchBadge}>branching…</div>}
+
       {/* × removal button */}
       {node.inserted && (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); removeInserted(node.id); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            removeInserted(node.id);
+          }}
           style={sCompact.removeBtn}
           title="Remove this inserted beat"
         >
@@ -486,26 +703,32 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
             draggable={false}
             style={{
               ...sCompact.thumbImg,
-              filter: node.status === "visited" ? "grayscale(0.3) brightness(0.82)" : undefined,
+              filter:
+                node.status === "visited"
+                  ? "grayscale(0.3) brightness(0.82)"
+                  : undefined,
             }}
           />
         )}
         {!node.imageUrl && (
-          <div style={{
-            ...sCompact.shimmer,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "0 10px",
-            fontFamily: "var(--font-mono)",
-            fontSize: 9,
-            textTransform: "uppercase" as const,
-            letterSpacing: "0.18em",
-            color: "rgba(170,185,205,0.5)",
-            textAlign: "center" as const,
-            lineHeight: 1.4,
-          }}>
-            {(node.body || node.summary || node.title || "").slice(0, 80) || "No keyframe"}
+          <div
+            style={{
+              ...sCompact.shimmer,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 10px",
+              fontFamily: "var(--font-mono)",
+              fontSize: 9,
+              textTransform: "uppercase" as const,
+              letterSpacing: "0.18em",
+              color: "rgba(170,185,205,0.5)",
+              textAlign: "center" as const,
+              lineHeight: 1.4,
+            }}
+          >
+            {(node.body || node.summary || node.title || "").slice(0, 80) ||
+              "No keyframe"}
           </div>
         )}
         {/* Vignette */}
@@ -551,7 +774,11 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
             transition: "box-shadow 0.14s ease, background 0.14s ease",
           }}
         >
-          <MoodIcon size={11} strokeWidth={2.2} style={{ color: iconColor, flexShrink: 0 }} />
+          <MoodIcon
+            size={11}
+            strokeWidth={2.2}
+            style={{ color: iconColor, flexShrink: 0 }}
+          />
           <span
             style={{ ...sCompact.ribbonTitle, color: titleColor }}
             title={node.label ? node.title : undefined}
@@ -575,16 +802,32 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
             </span>
           )}
           {isVisited && (
-            <Check size={11} strokeWidth={2.2} style={{ color: iconColor, marginLeft: "auto", flexShrink: 0 }} />
+            <Check
+              size={11}
+              strokeWidth={2.2}
+              style={{ color: iconColor, marginLeft: "auto", flexShrink: 0 }}
+            />
           )}
           {node.status === "generating" && (
-            <Lock size={11} style={{ color: isShell ? "#e9c16b" : "#4fc3f7", marginLeft: "auto", flexShrink: 0 }} />
+            <Lock
+              size={11}
+              style={{
+                color: isShell ? "#e9c16b" : "#4fc3f7",
+                marginLeft: "auto",
+                flexShrink: 0,
+              }}
+            />
           )}
           {!isVisited && node.status !== "generating" && (
             <ChevronRight
               size={11}
               strokeWidth={2.2}
-              style={{ color: iconColor, opacity: 0.75, marginLeft: "auto", flexShrink: 0 }}
+              style={{
+                color: iconColor,
+                opacity: 0.75,
+                marginLeft: "auto",
+                flexShrink: 0,
+              }}
             />
           )}
         </div>
@@ -609,21 +852,46 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
         >
           {node.decidedBy === "agent" ? (
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ color: "rgba(79,195,247,0.5)", letterSpacing: "0.3em", fontSize: 8.5 }}>AGENT</span>
+              <span
+                style={{
+                  color: "rgba(79,195,247,0.5)",
+                  letterSpacing: "0.3em",
+                  fontSize: 8.5,
+                }}
+              >
+                AGENT
+              </span>
               <Bot size={10} strokeWidth={2} style={{ color: "#4fc3f7" }} />
               <span style={{ color: "rgba(79,195,247,0.75)" }}>
-                {(node.decidedByAgent?.replace("hermes-", "") ?? "brainstorm").toUpperCase()}
+                {(
+                  node.decidedByAgent?.replace("hermes-", "") ?? "brainstorm"
+                ).toUpperCase()}
               </span>
             </span>
           ) : (
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ color: "rgba(233,193,107,0.5)", letterSpacing: "0.3em", fontSize: 8.5 }}>USER</span>
+              <span
+                style={{
+                  color: "rgba(233,193,107,0.5)",
+                  letterSpacing: "0.3em",
+                  fontSize: 8.5,
+                }}
+              >
+                USER
+              </span>
               <User size={10} strokeWidth={2} style={{ color: "#e9c16b" }} />
               <span style={{ color: "rgba(233,193,107,0.75)" }}>YOU</span>
             </span>
           )}
           {node.inserted && (
-            <span style={{ border: "1px solid rgba(255,255,255,0.06)", padding: "1px 5px", fontSize: 8, marginLeft: "auto" }}>
+            <span
+              style={{
+                border: "1px solid rgba(255,255,255,0.06)",
+                padding: "1px 5px",
+                fontSize: 8,
+                marginLeft: "auto",
+              }}
+            >
               INS
             </span>
           )}
@@ -635,17 +903,33 @@ function CompactBar({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
 
 // ---- CheckpointCard ---------------------------------------------------------
 
-function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean }) {
+function CheckpointCard({
+  node,
+  hovered,
+}: {
+  node: TStoryNode;
+  hovered: boolean;
+}) {
   const setCurrent = useStory((s) => s.setCurrent);
   const removeInserted = useStory((s) => s.removeInserted);
   const addBranches = useStory((s) => s.addBranches);
+  const openInsertModal = useStory((s) => s.openInsertModal);
+  const nodes = useStory((s) => s.nodes);
+  const isBranchGenerating = useStory((s) =>
+    s.branchGeneratingNodeIds.includes(node.id),
+  );
   const industryMode = useStory((s) => s.industryMode);
   const labels = modeLabels(industryMode);
   const [loaded, setLoaded] = useState(false);
   const isCurrent = node.status === "current";
-  const isShell = node.status === "generating" && !!node.inserted && !node.title;
+  const isShell =
+    node.status === "generating" && !!node.inserted && !node.title;
   const isHover = hovered;
   const staleTint = staleBorder(node);
+  const spliceChildId =
+    node.childrenIds.find((childId) => nodes.get(childId)?.tone === "canon") ??
+    node.childrenIds[0] ??
+    null;
 
   const ribbonBg = isShell
     ? "linear-gradient(90deg, rgba(20,26,36,0.7) 0%, rgba(20,26,36,0.4) 100%)"
@@ -666,14 +950,26 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
         ...sCheckpoint.container,
         opacity: isShell ? 0.82 : 1,
       }}
-      onClick={(e) => { e.stopPropagation(); setCurrent(node.id); }}
+      onClick={(e) => {
+        e.stopPropagation();
+        setCurrent(node.id);
+      }}
     >
       {/* × removal button */}
       {node.inserted && (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); removeInserted(node.id); }}
-          style={{ ...sCompact.removeBtn, width: 24, height: 24, top: -8, right: -8 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            removeInserted(node.id);
+          }}
+          style={{
+            ...sCompact.removeBtn,
+            width: 24,
+            height: 24,
+            top: -8,
+            right: -8,
+          }}
           title="Remove this inserted beat"
         >
           <X size={12} strokeWidth={2.2} />
@@ -684,62 +980,82 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
       <Handle
         type="target"
         position={Position.Left}
-        style={{ ...sCompact.handle, left: 6, top: 120, transform: "translate(0, -50%)" }}
+        style={{
+          ...sCompact.handle,
+          left: 6,
+          top: 120,
+          transform: "translate(0, -50%)",
+        }}
       />
       <Handle
         type="source"
         position={Position.Right}
-        style={{ ...sCompact.handle, right: -2, top: 120, transform: "translate(0, -50%)" }}
+        style={{
+          ...sCompact.handle,
+          right: -2,
+          top: 120,
+          transform: "translate(0, -50%)",
+        }}
       />
 
       {/* Image tile */}
       <div
         style={{
           ...sCheckpoint.imageWrap,
-          boxShadow: node.status === "generating"
-            ? "0 0 22px rgba(79,195,247,0.35), 0 0 44px rgba(79,195,247,0.15)"
-            : isShell
-              ? "0 0 18px rgba(233,193,107,0.28)"
-              : staleTint
-                ? `inset 0 0 0 1.5px ${staleTint}, 0 0 20px ${staleTint}40`
-                : isHover
-                  ? "inset 0 0 0 1px #4fc3f7, 0 0 18px rgba(79,195,247,0.2)"
-                  : "inset 0 0 0 1px rgba(255,255,255,0.08)",
+          boxShadow:
+            node.status === "generating"
+              ? "0 0 22px rgba(79,195,247,0.35), 0 0 44px rgba(79,195,247,0.15)"
+              : isShell
+                ? "0 0 18px rgba(233,193,107,0.28)"
+                : staleTint
+                  ? `inset 0 0 0 1.5px ${staleTint}, 0 0 20px ${staleTint}40`
+                  : isHover
+                    ? "inset 0 0 0 1px #4fc3f7, 0 0 18px rgba(79,195,247,0.2)"
+                    : "inset 0 0 0 1px rgba(255,255,255,0.08)",
           transition: "box-shadow 0.18s ease",
-          animation: node.status === "generating" ? "generatingGlow 2.5s ease-in-out infinite" : undefined,
+          animation:
+            node.status === "generating"
+              ? "generatingGlow 2.5s ease-in-out infinite"
+              : undefined,
         }}
       >
         <div style={sCheckpoint.imageInner}>
           {!loaded && !node.imageUrl && (
-            <div style={{
-              ...sCompact.shimmer,
-              display: "flex",
-              flexDirection: "column" as const,
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              padding: 20,
-            }}>
-              <span style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 9,
-                textTransform: "uppercase" as const,
-                letterSpacing: "0.28em",
-                color: "rgba(170,185,205,0.35)",
-              }}>
+            <div
+              style={{
+                ...sCompact.shimmer,
+                display: "flex",
+                flexDirection: "column" as const,
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                padding: 20,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 9,
+                  textTransform: "uppercase" as const,
+                  letterSpacing: "0.28em",
+                  color: "rgba(170,185,205,0.35)",
+                }}
+              >
                 no keyframe
               </span>
-              <span style={{
-                fontSize: 12,
-                lineHeight: 1.5,
-                color: "rgba(170,185,205,0.55)",
-                textAlign: "center" as const,
-                maxWidth: "90%",
-                display: "-webkit-box" as const,
-                WebkitBoxOrient: "vertical" as const,
-                WebkitLineClamp: 5,
-                overflow: "hidden",
-              }}>
+              <span
+                style={{
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                  color: "rgba(170,185,205,0.55)",
+                  textAlign: "center" as const,
+                  maxWidth: "90%",
+                  display: "-webkit-box" as const,
+                  WebkitBoxOrient: "vertical" as const,
+                  WebkitLineClamp: 5,
+                  overflow: "hidden",
+                }}
+              >
                 {node.body || node.summary || node.title || ""}
               </span>
             </div>
@@ -759,7 +1075,10 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
                 ...sCheckpoint.imageInner,
                 objectFit: "cover",
                 opacity: loaded ? 1 : 0,
-                filter: node.status === "visited" ? "grayscale(0.3) brightness(0.82)" : undefined,
+                filter:
+                  node.status === "visited"
+                    ? "grayscale(0.3) brightness(0.82)"
+                    : undefined,
                 transition: "opacity 0.3s ease",
               }}
             />
@@ -802,11 +1121,22 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
             </div>
           )}
 
+          {isBranchGenerating && (
+            <div style={sCheckpoint.branchOverlay}>
+              <span style={sCheckpoint.branchOverlayKicker}>AI branching</span>
+              <span style={sCheckpoint.branchOverlayTitle}>
+                Generating new routes from this {labels.beat.toLowerCase()}…
+              </span>
+            </div>
+          )}
+
           {/* Storybook button */}
           {!isShell && node.status !== "generating" && node.parentId && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
               title="Generate storybook video ending at this beat"
               style={{
                 ...sCheckpoint.imageTag,
@@ -825,11 +1155,20 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
 
       {/* Active-beat indicator brackets */}
       {isCurrent && (
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" as const, zIndex: 20 }} aria-hidden>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none" as const,
+            zIndex: 20,
+          }}
+          aria-hidden
+        >
           <span
             style={{
               ...sCheckpoint.cornerBracket,
-              top: -11, left: -5,
+              top: -11,
+              left: -5,
               borderTop: "1.7px solid #4fc3f7",
               borderLeft: "1.7px solid #4fc3f7",
             }}
@@ -837,7 +1176,8 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
           <span
             style={{
               ...sCheckpoint.cornerBracket,
-              top: -11, right: -5,
+              top: -11,
+              right: -5,
               borderTop: "1.7px solid #4fc3f7",
               borderRight: "1.7px solid #4fc3f7",
             }}
@@ -845,7 +1185,8 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
           <span
             style={{
               ...sCheckpoint.cornerBracket,
-              bottom: -5, left: -5,
+              bottom: -5,
+              left: -5,
               borderBottom: "1.7px solid #4fc3f7",
               borderLeft: "1.7px solid #4fc3f7",
             }}
@@ -853,7 +1194,8 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
           <span
             style={{
               ...sCheckpoint.cornerBracket,
-              bottom: -5, right: -5,
+              bottom: -5,
+              right: -5,
               borderBottom: "1.7px solid #4fc3f7",
               borderRight: "1.7px solid #4fc3f7",
             }}
@@ -889,57 +1231,96 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
 
       {/* Quick add controls */}
       {isCurrent && !isShell && (
-        <div
-          style={{
-            ...sCheckpoint.quickActions,
-            opacity: isHover ? 1 : 0.82,
-            transform: isHover ? "translateY(0)" : "translateY(-1px)",
-          }}
-          aria-label="Add node options"
-        >
+        <div style={sCheckpoint.quickActions} aria-label="Branch actions">
           <button
             type="button"
             style={sCheckpoint.quickButton("canon")}
-            onClick={(e) => { e.stopPropagation(); handleQuickAdd("canon"); }}
-            title={`Add canon ${labels.beat.toLowerCase()}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleQuickAdd("canon");
+            }}
+            title={`Continue with a canon ${labels.beat.toLowerCase()}`}
           >
-            + ○
+            continue
           </button>
           <button
             type="button"
             style={sCheckpoint.quickButton("what-if")}
-            onClick={(e) => { e.stopPropagation(); handleQuickAdd("what-if"); }}
-            title={`Add alternate ${labels.beat.toLowerCase()}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleQuickAdd("what-if");
+            }}
+            title={`Explore an alternate ${labels.beat.toLowerCase()}`}
           >
-            + □
+            explore alternate
           </button>
+          {spliceChildId && (
+            <button
+              type="button"
+              style={sCheckpoint.quickButton("splice")}
+              onClick={(e) => {
+                e.stopPropagation();
+                openInsertModal(node.id, spliceChildId, "canon");
+              }}
+              title={`Insert a ${labels.beat.toLowerCase()} between this node and its next child`}
+            >
+              insert between
+            </button>
+          )}
         </div>
       )}
 
       {/* Provenance HUD */}
-      <div style={{
-        ...sCheckpoint.provenance,
-        borderTop: "1px solid rgba(255,255,255,0.04)",
-        paddingTop: 8,
-        marginTop: 10,
-      }}>
+      <div
+        style={{
+          ...sCheckpoint.provenance,
+          borderTop: "1px solid rgba(255,255,255,0.04)",
+          paddingTop: 8,
+          marginTop: 10,
+        }}
+      >
         {node.decidedBy === "agent" ? (
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ color: "rgba(79,195,247,0.5)", letterSpacing: "0.3em", fontSize: 9.5 }}>AGENT</span>
+            <span
+              style={{
+                color: "rgba(79,195,247,0.5)",
+                letterSpacing: "0.3em",
+                fontSize: 9.5,
+              }}
+            >
+              AGENT
+            </span>
             <Bot size={11} strokeWidth={2} style={{ color: "#4fc3f7" }} />
             <span style={{ color: "rgba(79,195,247,0.75)" }}>
-              {(node.decidedByAgent?.replace("hermes-", "") ?? "brainstorm").toUpperCase()}
+              {(
+                node.decidedByAgent?.replace("hermes-", "") ?? "brainstorm"
+              ).toUpperCase()}
             </span>
           </span>
         ) : (
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ color: "rgba(233,193,107,0.5)", letterSpacing: "0.3em", fontSize: 9.5 }}>USER</span>
+            <span
+              style={{
+                color: "rgba(233,193,107,0.5)",
+                letterSpacing: "0.3em",
+                fontSize: 9.5,
+              }}
+            >
+              USER
+            </span>
             <User size={11} strokeWidth={2} style={{ color: "#e9c16b" }} />
             <span style={{ color: "rgba(233,193,107,0.75)" }}>YOU</span>
           </span>
         )}
         {node.inserted && (
-          <span style={{ border: "1px solid rgba(255,255,255,0.06)", padding: "1px 5px", fontSize: 8, marginLeft: "auto" }}>
+          <span
+            style={{
+              border: "1px solid rgba(255,255,255,0.06)",
+              padding: "1px 5px",
+              fontSize: 8,
+              marginLeft: "auto",
+            }}
+          >
             INS
           </span>
         )}
@@ -950,7 +1331,15 @@ function CheckpointCard({ node, hovered }: { node: TStoryNode; hovered: boolean 
 
 // ---- StoryNodeCard (main export) -------------------------------------------
 
-function PreviewOverlay({ node, yShift, hovered }: { node: TStoryNode; yShift: number; hovered: boolean }) {
+function PreviewOverlay({
+  node,
+  yShift,
+  hovered,
+}: {
+  node: TStoryNode;
+  yShift: number;
+  hovered: boolean;
+}) {
   const setCurrent = useStory((s) => s.setCurrent);
   return (
     <div
@@ -960,9 +1349,86 @@ function PreviewOverlay({ node, yShift, hovered }: { node: TStoryNode; yShift: n
         top: -yShift,
         zIndex: 20,
       }}
-      onClick={(e) => { e.stopPropagation(); setCurrent(node.id); }}
+      onClick={(e) => {
+        e.stopPropagation();
+        setCurrent(node.id);
+      }}
     >
       <CheckpointCard node={node} hovered={hovered} />
+    </div>
+  );
+}
+
+function StageCard({ node }: { node: TStoryNode }) {
+  const setCurrent = useStory((s) => s.setCurrent);
+  const nodes = useStory((s) => s.nodes);
+  const isCurrent = node.status === "current";
+  const nextStageCount = node.childrenIds.filter(
+    (childId) => nodes.get(childId)?.kind === "writers-room-stage",
+  ).length;
+  const deliverableCount = node.childrenIds.length - nextStageCount;
+  const stageOrder = node.title.match(/^(\d+)\./)?.[1] ?? "ST";
+  const stageTitle = node.title.replace(/^\d+\.\s*/, "");
+
+  return (
+    <div
+      style={{
+        ...sStage.container,
+        boxShadow: isCurrent
+          ? "0 0 0 1px rgba(233,193,107,0.34), 0 18px 44px rgba(0,0,0,0.42)"
+          : sStage.container.boxShadow,
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+        setCurrent(node.id);
+      }}
+    >
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{
+          ...sCompact.handle,
+          left: 6,
+          top: STAGE_HEIGHT / 2,
+          transform: "translate(0, -50%)",
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{
+          ...sCompact.handle,
+          right: -2,
+          top: STAGE_HEIGHT / 2,
+          transform: "translate(0, -50%)",
+        }}
+      />
+      <div style={sStage.glow} />
+
+      <div style={sStage.header}>
+        <div style={sStage.kicker}>
+          <Library size={14} strokeWidth={2.2} />
+          writers room stage
+        </div>
+        <span style={sStage.order}>{stageOrder}</span>
+      </div>
+
+      <div style={sStage.title}>{stageTitle || node.title}</div>
+      <div style={sStage.summary}>
+        {node.summary || node.body || "No stage summary yet."}
+      </div>
+
+      <div style={sStage.footer}>
+        <div style={sStage.meta}>
+          <span style={sStage.pill("blue")}>{deliverableCount} artifacts</span>
+          <span style={sStage.pill("gold")}>
+            {nextStageCount > 0 ? "spine active" : "final review"}
+          </span>
+        </div>
+        {isCurrent ? (
+          <span style={sStage.currentTag}>current stage</span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -972,7 +1438,10 @@ export function StoryNodeCard({ data }: Props) {
   const [isHovered, setIsHovered] = useState(false);
   const variant = variantOf(node);
 
-  if (variant === "checkpoint") return <CheckpointCard node={node} hovered={isHovered} />;
+  if (variant === "stage") return <StageCard node={node} />;
+
+  if (variant === "checkpoint")
+    return <CheckpointCard node={node} hovered={isHovered} />;
 
   const showPreview = isHovered;
   const yShift = (CHECKPOINT_HEIGHT - COMPACT_HEIGHT) / 2;
